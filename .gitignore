@@ -1,0 +1,22 @@
+# 运行时产物（不随仓库走）
+_tmp/
+_data/
+exports.log
+*.part
+*.part.mp4
+
+# ffmpeg 二进制：单文件 100MB+，超过 GitHub 单文件上限，
+# 自己下载 static build 放到 bin/ 即可（见 README「准备 ffmpeg」）
+bin/ffmpeg.exe
+bin/ffprobe.exe
+bin/*.exe
+
+# 本地工作记录（含使用笔记），不公开
+.workbuddy/
+
+# 系统垃圾
+Thumbs.db
+desktop.ini
+.DS_Store
+__pycache__/
+*.pyc

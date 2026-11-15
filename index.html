@@ -1,0 +1,1902 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>视频剪裁工具</title>
+<style>
+:root{
+  --bg:#0e1116; --bg2:#151a22; --bg3:#1c232e; --line:#2a3342;
+  --txt:#e6edf6; --dim:#8b98ab; --accent:#4f9dff; --accent2:#2f7de1;
+  --seg:#2f7de1; --seg2:#4f9dff; --warn:#ffb648; --ok:#41d18c; --danger:#ff6b6b;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--txt); overflow:hidden;
+  font:14px/1.5 "Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+button{
+  font:inherit; color:var(--txt); background:var(--bg3); border:1px solid var(--line);
+  border-radius:8px; padding:6px 11px; cursor:pointer; transition:.15s; white-space:nowrap;
+}
+button:hover{background:#26303d; border-color:#3a4757}
+button:active{transform:translateY(1px)}
+button:disabled{opacity:.45; cursor:not-allowed}
+button.primary{background:linear-gradient(180deg,var(--seg2),var(--accent2)); border-color:var(--accent2); color:#fff; font-weight:600}
+button.primary:hover{filter:brightness(1.08)}
+button.ghost{background:transparent}
+button.mini{padding:3px 7px; font-size:12px; border-radius:6px}
+input[type=text],input[type=number],select{
+  font:inherit; color:var(--txt); background:#0b0f14; border:1px solid var(--line);
+  border-radius:6px; padding:4px 7px; outline:none;
+}
+input:focus,select:focus{border-color:var(--accent)}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#2b3542;border-radius:6px}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ---------- 布局 ---------- */
+#app{display:flex;flex-direction:column;height:100%}
+header{
+  display:flex;align-items:center;gap:9px;padding:9px 14px;
+  background:var(--bg2);border-bottom:1px solid var(--line);flex:0 0 auto;
+}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:.3px}
+.logo .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent)}
+.fname{color:var(--dim);max-width:30vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fname b{color:var(--txt);font-weight:600}
+.spacer{flex:1}
+.nav{display:flex;align-items:center;gap:2px;background:var(--bg3);border:1px solid var(--line);border-radius:8px;padding:2px}
+.nav button{background:transparent;border:0;padding:2px 7px;font-size:13px;border-radius:6px}
+.nav button:hover{background:#2a3543}
+.nav .pos{font:11.5px/1 ui-monospace,Consolas,monospace;color:var(--dim);padding:0 3px;min-width:44px;text-align:center}
+#btnJobs.hot{border-color:#3d5a7a;color:#9fd0ff}
+
+main{flex:1;display:flex;min-height:0}
+.left{flex:1;display:flex;flex-direction:column;min-width:0;padding:12px 12px 10px}
+.right{
+  width:360px;flex:0 0 360px;border-left:1px solid var(--line);background:var(--bg2);
+  display:flex;flex-direction:column;min-height:0;
+}
+
+/* ---------- 左侧列表 ---------- */
+#side{
+  width:268px;flex:0 0 268px;border-right:1px solid var(--line);background:var(--bg2);
+  display:flex;flex-direction:column;min-height:0;
+}
+#side[hidden]{display:none}
+.sidehd{display:flex;align-items:center;gap:4px;padding:7px 8px;border-bottom:1px solid var(--line);flex:0 0 auto}
+.sidehd .tab{
+  background:transparent;border:0;padding:4px 8px;font-size:12.5px;color:var(--dim);border-radius:6px;
+}
+.sidehd .tab.on{background:var(--bg3);color:var(--txt);font-weight:600}
+.sidehd .tab b{font-weight:600;color:#7fb4e8}
+.sidehd .tab.on b{color:#9fd0ff}
+.sidehd .sp{flex:1}
+.sidebody{flex:1;display:flex;flex-direction:column;min-height:0}
+.searchrow{padding:7px 8px 3px}
+.searchrow input{width:100%;font-size:12.5px;padding:4px 8px}
+.lib{flex:1;overflow:auto;padding:4px 6px 8px}
+.li{
+  position:relative;padding:6px 8px;border:1px solid transparent;border-radius:8px;
+  margin-bottom:3px;cursor:pointer;background:#131922;overflow:hidden;
+}
+.li:hover{border-color:#2f3a49}
+.li.on{border-color:var(--seg2);background:#16233a}
+.li .nm{
+  font-size:12.5px;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:44px;
+}
+.li.on .nm{color:#cfe4ff}
+.li .mt{font-size:11px;color:#6d7c90;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.li .tag2{
+  position:absolute;top:6px;right:7px;font-size:10.5px;color:#7f8ea3;
+  background:#1b2431;border-radius:5px;padding:0 5px;line-height:16px;
+}
+.li.has .tag2{color:#ffce7a;background:#2a2318}
+.li.busy .tag2{color:#ffce7a;background:#2a2318}
+.li.done .tag2{color:#63d6a0;background:#15251d}
+.li .pfr{color:#63d6a0;font-weight:400;margin-right:3px;font-style:normal}
+.li.busy{background:#1a1f28}
+.li .pb{position:absolute;left:0;bottom:0;height:2px;background:linear-gradient(90deg,#2f7de1,#7fc0ff)}
+.jt-empty{color:#6d7c90;text-align:center;padding:24px 14px;font-size:12px;line-height:1.9}
+.sideft{padding:7px 8px;border-top:1px solid var(--line);display:flex;gap:5px;flex:0 0 auto}
+
+.joblist{flex:1;overflow:auto;padding:6px}
+.job{background:#131922;border:1px solid transparent;border-radius:8px;padding:6px 8px;margin-bottom:5px}
+.job.run{border-color:#33465e;background:#141c27}
+.job.err{border-color:#3d2222;background:#1b1414}
+.jr{display:flex;align-items:baseline;gap:6px}
+.jr .jn{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+.jr .jp{font:11px/1.5 ui-monospace,Consolas,monospace;color:#9fd0ff;flex:0 0 auto}
+.jr .jp.done{color:var(--ok)}
+.jr .jp.err{color:var(--danger)}
+.jm{font-size:11px;color:#6d7c90;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar.sm{height:4px;margin:4px 0 0}
+
+/* ---------- 播放区 ---------- */
+.stage{
+  position:relative;flex:1;min-height:0;background:#000;border-radius:12px;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;border:1px solid var(--line);
+}
+#v{width:100%;height:100%;object-fit:contain;background:#000;display:block}
+#empty{
+  position:absolute;inset:0;display:flex;flex-direction:column;gap:14px;
+  align-items:center;justify-content:center;color:var(--dim);text-align:center;
+}
+#empty .big{font-size:15px;color:var(--txt)}
+#empty .keys{font-size:12.5px;line-height:2}
+kbd{
+  background:#0b0f14;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;
+  padding:1px 6px;font:11.5px/1.6 ui-monospace,Consolas,monospace;color:#c9d6e6
+}
+.badge{
+  position:absolute;top:10px;left:10px;background:rgba(0,0,0,.62);border:1px solid var(--line);
+  padding:4px 9px;border-radius:20px;font-size:12px;display:none;backdrop-filter:blur(4px);
+}
+.badge.show{display:block}
+/* 关键帧太稀时提示「快进会卡」，并给一个生成顺滑预览的入口 */
+.seekhint{
+  position:absolute;bottom:10px;left:10px;display:none;align-items:center;gap:10px;
+  background:rgba(12,16,22,.86);border:1px solid var(--line);border-radius:10px;
+  padding:6px 8px 6px 11px;font-size:12px;color:#cfdcea;backdrop-filter:blur(6px);
+  max-width:calc(100% - 20px);z-index:4;line-height:1.35;
+}
+.seekhint.show{display:flex}
+.seekhint b{color:#ffcb6b;font-weight:600}
+.seekhint button{
+  font:inherit;font-size:12px;padding:4px 10px;border-radius:7px;cursor:pointer;flex:0 0 auto;
+  background:#22344a;border:1px solid #35506f;color:#cfe4ff;white-space:nowrap;
+}
+.seekhint button:hover{background:#2c4058}
+.seekhint button.x{
+  background:transparent;border-color:transparent;color:#7b8ea3;padding:2px 6px;font-size:14px;line-height:1;
+}
+.seekhint button.x:hover{background:#243244;color:#cfdcea}
+.seekbusy{
+  position:absolute;top:10px;right:10px;display:none;align-items:center;gap:6px;
+  background:rgba(0,0,0,.62);border:1px solid var(--line);border-radius:20px;
+  padding:4px 11px;font-size:12px;color:#9fb3c8;z-index:4;backdrop-filter:blur(4px);
+}
+.seekbusy.show{display:flex}
+.seekbusy i{
+  width:10px;height:10px;border:2px solid #3a4a5e;border-top-color:#4f9dff;
+  border-radius:50%;animation:spin .8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.overlay{
+  position:absolute;inset:0;background:rgba(8,11,15,.88);display:none;
+  flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;
+  z-index:5;
+}
+.overlay.show{display:flex}
+.overlay h3{margin:0;font-size:16px}
+.overlay p{margin:0;color:var(--dim);max-width:520px;font-size:13px}
+
+/* ---------- 时间轴 ---------- */
+.tlwrap{margin-top:10px;flex:0 0 auto}
+#tl{
+  position:relative;height:74px;background:#0b0f14;border:1px solid var(--line);
+  border-radius:10px;overflow:hidden;cursor:crosshair;user-select:none;touch-action:none;
+}
+#tl.dragging{cursor:ew-resize}
+#wave{position:absolute;inset:0;opacity:.55}
+#lane{position:absolute;left:0;right:0;top:8px;height:40px}
+.seg{
+  position:absolute;top:0;height:100%;background:linear-gradient(180deg,rgba(79,157,255,.92),rgba(47,125,225,.92));
+  border:1px solid #8dc0ff;border-radius:5px;overflow:hidden;cursor:grab;
+  display:flex;align-items:center;justify-content:center;min-width:2px;
+  box-shadow:0 2px 10px rgba(47,125,225,.3);
+}
+.seg .lbl{font-size:10.5px;color:#fff;font-weight:600;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,.6);overflow:hidden;white-space:nowrap;padding:0 4px}
+.seg.sel{background:linear-gradient(180deg,#7fc0ff,#3f8ef0);box-shadow:0 0 0 2px #fff inset,0 2px 14px rgba(79,157,255,.55)}
+.seg .h{position:absolute;top:0;bottom:0;width:7px;cursor:ew-resize;background:rgba(255,255,255,.0)}
+.seg .h:hover{background:rgba(255,255,255,.35)}
+.seg .h.l{left:0}
+.seg .h.r{right:0}
+#sel{position:absolute;top:8px;height:40px;background:rgba(255,182,72,.28);border:1px dashed var(--warn);border-radius:5px;display:none;pointer-events:none}
+#ph{position:absolute;top:0;bottom:0;width:2px;background:#ff5566;pointer-events:none;box-shadow:0 0 8px rgba(255,85,102,.9)}
+#ph:before{content:'';position:absolute;top:0;left:-4px;border:5px solid transparent;border-top-color:#ff5566}
+#ruler{position:absolute;left:0;right:0;bottom:0;height:18px;font-size:10px;color:#6d7c90;pointer-events:none}
+#ruler span{position:absolute;transform:translateX(-50%)}
+#ruler i{position:absolute;bottom:0;width:1px;height:5px;background:#2a3342}
+
+/* ---------- 控制条 ---------- */
+.transport{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap;justify-content:space-between}
+.markbar{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+.markbar .tip{color:#6d7c90;font-size:12px;margin-left:2px}
+.exp .hint{font-size:11.5px;color:#6d7c90;margin:-3px 0 8px 0;line-height:1.5}
+.exp .chkrow{margin:-2px 0 8px}
+.exp .chk{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:#9fb0c4;cursor:pointer;user-select:none}
+.exp .chk input{width:13px;height:13px;accent-color:#4f9dff;cursor:pointer}
+.exp .chk.warn{color:#ff9d8f}
+.exp .chk.warn input{accent-color:#ff6b5b}
+.exp .hwtip{font-size:11.5px;color:#6d7c90;margin-left:8px}
+.exp .pwarm{display:none;font-size:11.5px;line-height:1.5;margin:-2px 0 8px;color:#8ea2b8;
+  background:#141b25;border:1px solid #22303f;border-radius:7px;padding:5px 8px}
+.exp .pwarm.on{display:block}
+.exp .pwarm.busy{color:#ffc457;border-color:#3d3320;background:#1d1a12}
+.exp .pwarm.ok{color:#5fd39b;border-color:#1d3a2c;background:#121c18}
+.exp .pwarm.err{color:#ff8a8a;border-color:#3d2222;background:#1d1414}
+.transport .grp{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:4px 6px}
+.timecode{font:13px/1 ui-monospace,Consolas,monospace;color:var(--txt);letter-spacing:.4px}
+.timecode .tot{color:var(--dim)}
+#vol{width:76px;accent-color:var(--accent)}
+.mark{display:flex;align-items:center;gap:7px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:5px 8px 5px 10px;font:12.5px/1 ui-monospace,Consolas,monospace}
+.mark .tag{color:var(--dim);font-family:"Segoe UI","Microsoft YaHei",sans-serif;font-size:12px}
+.mark .val{color:var(--warn);min-width:82px;display:inline-block}
+.mark .val.out{color:var(--ok)}
+
+/* ---------- 右侧 ---------- */
+.panelhd{
+  display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--line);
+  font-weight:600;flex:0 0 auto;
+}
+.panelhd .n{color:var(--dim);font-weight:400;font-size:12.5px}
+#list{flex:1;overflow:auto;padding:8px 10px;min-height:60px}
+.row{
+  display:flex;align-items:center;gap:7px;padding:7px 8px;border:1px solid transparent;
+  border-radius:8px;margin-bottom:5px;background:#131922;
+}
+.row:hover{border-color:#2f3a49}
+.row.sel{border-color:var(--seg2);background:#16233a}
+.row .idx{
+  width:20px;height:20px;flex:0 0 20px;border-radius:5px;background:var(--bg3);color:#9fb2c9;
+  font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:600
+}
+.row input.t{width:76px;font:12px/1 ui-monospace,Consolas,monospace;padding:4px 5px;text-align:center}
+.row .d{color:var(--dim);font-size:11.5px;min-width:42px;text-align:right}
+.row .acts{display:flex;gap:3px;margin-left:auto}
+.row .acts button{background:transparent;border-color:transparent;padding:3px 6px;font-size:12px;border-radius:5px;color:#9fb2c9}
+.row .acts button:hover{background:var(--bg3);color:#fff}
+.empty-tip{color:#6d7c90;text-align:center;padding:26px 12px;font-size:13px;line-height:2}
+
+.exp{border-top:1px solid var(--line);padding:12px 14px;flex:0 0 auto;background:#121821}
+.exp .r{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px}
+.exp .r .k{color:var(--dim);width:64px;flex:0 0 64px}
+.exp .path.outname{color:#9fd0ff;border-color:#2f4a68}
+.exp .path{
+  flex:1;background:#0b0f14;border:1px solid var(--line);border-radius:6px;padding:4px 7px;
+  font:11.5px/1.5 ui-monospace,Consolas,monospace;color:#9fb2c9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.segbtn{display:flex;gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.segbtn button{border:0;border-radius:0;background:transparent;padding:5px 11px;font-size:12.5px}
+.segbtn button.on{background:var(--accent2);color:#fff;font-weight:600}
+.bar{height:6px;background:#0b0f14;border-radius:4px;overflow:hidden;border:1px solid var(--line);margin:2px 0 6px}
+.bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#2f7de1,#4f9dff);transition:width .2s}
+.msg{font-size:12px;color:var(--dim);min-height:17px;word-break:break-all}
+.msg.err{color:var(--danger)}
+.msg.ok{color:var(--ok)}
+
+/* ---------- 拖拽遮罩 / 提示 ---------- */
+#drop{
+  position:fixed;inset:0;background:rgba(11,15,20,.86);border:3px dashed var(--accent);
+  display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px;z-index:50;
+  font-size:17px;backdrop-filter:blur(3px);
+}
+#drop.show{display:flex}
+#toast{
+  position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
+  background:#1c2430;border:1px solid var(--line);padding:9px 16px;border-radius:10px;
+  font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:60;box-shadow:0 8px 30px rgba(0,0,0,.5)
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#help{
+  position:fixed;inset:0;background:rgba(6,9,13,.8);display:none;align-items:center;justify-content:center;z-index:70;
+}
+#help.show{display:flex}
+#help .box{background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:20px 24px;max-width:600px}
+#help h3{margin:0 0 12px}
+#help table{border-collapse:collapse;font-size:13px}
+#help td{padding:4px 12px 4px 0;color:var(--dim)}
+#help td:first-child{color:var(--txt);white-space:nowrap}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="logo"><span class="dot"></span>视频剪裁工具</div>
+    <button id="btnOpen" class="primary">打开视频…</button>
+    <button id="btnFolder">打开文件夹…</button>
+    <div class="nav">
+      <button id="btnPrev" title="上一部 ([)">‹</button>
+      <span class="pos" id="pos">—/—</span>
+      <button id="btnNext" title="下一部 (])">›</button>
+      <button id="btnNextTodo" title="下一部还没剪的">⏭</button>
+    </div>
+    <span class="fname" id="fname">未选择文件</span>
+    <span class="spacer"></span>
+    <button id="btnSide" class="ghost mini" title="显示/隐藏左侧列表">列表</button>
+    <button id="btnJobs" class="ghost mini" title="后台剪辑任务">后台</button>
+    <button id="btnHelp" class="ghost mini" title="快捷键 (?)">快捷键 ?</button>
+  </header>
+
+  <main>
+    <aside id="side" hidden>
+      <div class="sidehd">
+        <button class="tab on" data-tab="list">视频 <b id="libCount">0</b></button>
+        <button class="tab" data-tab="jobs">任务 <b id="jobCount">0</b></button>
+        <span class="sp"></span>
+        <button id="btnSideClose" class="mini ghost" title="收起">«</button>
+      </div>
+      <div class="sidebody">
+        <div id="paneList" style="display:flex;flex-direction:column;min-height:0;flex:1">
+          <div class="searchrow"><input id="q" type="text" placeholder="搜索文件名或文件夹" /></div>
+          <div class="lib" id="libList"></div>
+        </div>
+        <div id="paneJobs" style="display:none;flex-direction:column;min-height:0;flex:1">
+          <div class="joblist" id="jobList"></div>
+          <div class="sideft" style="border-top:1px solid var(--line)">
+            <button class="mini" id="btnJobsClear" style="flex:1">清理已完成的任务</button>
+          </div>
+        </div>
+      </div>
+      <div class="sideft">
+        <button id="btnExportAll" class="mini" style="flex:1">导出全部已标注</button>
+        <button id="btnScanAgain" class="mini" title="重新扫描这个文件夹">↻</button>
+      </div>
+    </aside>
+
+    <div class="left">
+      <div class="stage" id="stage">
+        <video id="v" preload="auto"></video>
+        <div class="badge" id="badge"></div>
+        <div class="seekhint" id="seekHint"></div>
+        <div class="seekbusy" id="seekBusy"><i></i>跳转中…</div>
+        <div id="empty">
+          <div class="big">选择一个视频开始标注</div>
+          <div>点上方「打开视频…」选单个文件，或「打开文件夹…」把整个文件夹递归列出来</div>
+          <div class="keys">
+            <kbd>空格</kbd> 播放/暂停　<kbd>←</kbd><kbd>→</kbd> ±1 秒　<kbd>Shift</kbd>+<kbd>←</kbd><kbd>→</kbd> ±5 秒<br>
+            <kbd>I</kbd> 标记入点　<kbd>O</kbd> 标记出点　<kbd>Enter</kbd> 加入片段　<kbd>Ctrl</kbd>+<kbd>Enter</kbd> 导出<br>
+            <kbd>[</kbd> <kbd>]</kbd> 上一部 / 下一部（当前这部会在后台剪，不影响你继续标）
+          </div>
+        </div>
+        <div class="overlay" id="ovErr">
+          <h3>浏览器无法直接播放这个视频</h3>
+          <p id="errTxt">可能是 HEVC / 10bit 等编码。可以生成一个低清预览代理来标注，导出时仍使用原始高清视频。</p>
+          <div style="display:flex;gap:8px">
+            <button class="primary" id="btnProxy">生成预览代理</button>
+            <button id="btnPickAgain">换个文件</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="tlwrap">
+        <div id="tl">
+          <div id="lane"></div>
+          <div id="sel"></div>
+          <div id="ph" style="left:0"></div>
+          <div id="ruler"></div>
+        </div>
+        <div class="transport">
+          <div class="grp">
+            <button id="btnPlay" title="播放/暂停 (空格)">▶</button>
+            <button data-jump="-5" title="后退 5 秒">«5s</button>
+            <button data-jump="-1" title="后退 1 秒">‹1s</button>
+            <button data-jump="1" title="前进 1 秒">1s›</button>
+            <button data-jump="5" title="前进 5 秒">5s»</button>
+            <button id="btnFrameBack" title="上一帧 (,)">⏴|</button>
+            <button id="btnFrameFwd" title="下一帧 (.)">|⏵</button>
+          </div>
+          <div class="grp">
+            <span class="timecode"><span id="tNow">00:00.000</span> <span class="tot">/ <span id="tTot">00:00.000</span></span></span>
+          </div>
+          <div class="grp">
+            <button id="btnMute" title="静音">🔊</button>
+            <input type="range" id="vol" min="0" max="1" step="0.01" value="1" />
+            <select id="rate" title="播放速度">
+              <option value="0.25">0.25×</option>
+              <option value="0.5">0.5×</option>
+              <option value="1" selected>1×</option>
+              <option value="1.5">1.5×</option>
+              <option value="2">2×</option>
+              <option value="4">4×</option>
+            </select>
+            <button id="btnFs" title="全屏">⛶</button>
+          </div>
+        </div>
+
+        <div class="markbar">
+          <div class="mark"><span class="tag">入点</span><span class="val" id="inVal">--:--.---</span><button class="mini" id="btnIn" title="标记入点 (I)">I</button></div>
+          <div class="mark"><span class="tag">出点</span><span class="val out" id="outVal">--:--.---</span><button class="mini" id="btnOut" title="标记出点 (O)">O</button></div>
+          <button class="primary" id="btnAdd">加入片段 <span style="opacity:.7">⏎</span></button>
+          <span class="tip">也可以在时间轴上直接拖出一段 · 双击片段循环试听</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="panelhd">
+        标注片段 <span class="n" id="cnt">0 个 / 共 0s</span>
+        <span class="spacer"></span>
+        <button class="mini ghost" id="btnClear">清空</button>
+      </div>
+      <div id="list"><div class="empty-tip">还没有片段<br>在时间轴上拖一下，或按 <kbd>I</kbd> <kbd>O</kbd> <kbd>Enter</kbd></div></div>
+      <div class="exp">
+        <div class="r">
+          <span class="k">裁剪方式</span>
+          <div class="segbtn" id="modeBox">
+            <button data-mode="accurate" class="on">精确</button>
+            <button data-mode="fast">快速</button>
+          </div>
+        </div>
+        <div class="hint" id="modeHint"></div>
+        <div class="r chkrow">
+          <label class="chk"><input type="checkbox" id="hwEnc" checked><span>显卡加速</span></label>
+          <span class="hwtip" id="hwTip"></span>
+        </div>
+        <div class="r chkrow">
+          <label class="chk"><input type="checkbox" id="autoBg" checked><span>切换视频时自动后台导出</span></label>
+        </div>
+        <div class="r chkrow">
+          <label class="chk" id="delSrcLb" title="剪辑成功后把原片移到回收站（可恢复）；回收站放不下的大文件会直接删除。只对勾选之后提交的片子生效。">
+            <input type="checkbox" id="delSrc"><span>剪辑完成后删除原视频</span></label>
+        </div>
+        <div class="pwarm" id="pwarm"></div>
+        <div class="r">
+          <span class="k">输出目录</span>
+          <div class="path" id="outdir">—</div>
+          <button class="mini" id="btnOutdir">选择</button>
+        </div>
+        <div class="r">
+          <span class="k">输出文件</span>
+          <div class="path outname" id="outname">原文件名_剪辑.mp4</div>
+        </div>
+        <div class="bar"><i id="prog"></i></div>
+        <div class="r" style="margin:0">
+          <button class="primary" id="btnExport" style="flex:1">导出保留片段 ⏎</button>
+          <button id="btnNext2" title="下一部 (])">下一部 ›</button>
+          <button id="btnReveal" disabled>打开文件夹</button>
+        </div>
+        <div class="msg" id="msg"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="drop"><div>松手即可载入视频</div><div style="font-size:13px;color:var(--dim)">大文件会先复制到临时目录</div></div>
+<div id="toast"></div>
+<div id="help"><div class="box">
+  <h3>快捷键</h3>
+  <table>
+    <tr><td><kbd>空格</kbd> / 点击画面</td><td>播放 / 暂停</td></tr>
+    <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>±1 秒（按住连续）</td></tr>
+    <tr><td><kbd>Shift</kbd>+<kbd>←</kbd> <kbd>→</kbd></td><td>±5 秒</td></tr>
+    <tr><td><kbd>,</kbd> <kbd>.</kbd></td><td>上一帧 / 下一帧</td></tr>
+    <tr><td><kbd>I</kbd> / <kbd>O</kbd></td><td>标记入点 / 出点</td></tr>
+    <tr><td><kbd>Enter</kbd></td><td>把 入点→出点 加入片段</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Enter</kbd></td><td>提交后台剪辑（可以马上换下一部）</td></tr>
+    <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>上一部 / 下一部视频</td></tr>
+    <tr><td><kbd>P</kbd></td><td>下一部还没剪完的</td></tr>
+    <tr><td><kbd>Del</kbd> / <kbd>Backspace</kbd></td><td>删除选中的片段</td></tr>
+    <tr><td>时间轴空白处拖动</td><td>直接框选一个新片段</td></tr>
+    <tr><td>拖动片段 / 两端</td><td>移动或调整片段边界</td></tr>
+    <tr><td>双击片段</td><td>循环播放该片段</td></tr>
+  </table>
+  <p style="color:#8b98ab;font-size:12.5px;margin:12px 0 0;line-height:1.7">
+    标注完一部片子直接按 <kbd>]</kbd> 换下一部，这一部会自动进后台剪辑队列，不用等它跑完。
+  </p>
+  <div style="text-align:right;margin-top:14px"><button id="btnHelpClose">知道了</button></div>
+</div></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const v = $('#v');
+const tl = $('#tl'), lane = $('#lane'), selBox = $('#sel'), ph = $('#ph'), ruler = $('#ruler');
+
+let st = { duration:0, fps:30, name:'', path:'', dir:'', outdir:'', outname:'', dropped:false,
+           hasVideo:false, usingProxy:false, src:'', hwenc:true, encoder:'x264', encoderLabel:'',
+           keyint:0, proxyReady:false, proxyBusy:false, proxyPct:0, kf:[], proxyLater:false };
+let segs = [];       // 当前视频的片段 {id, a, b}
+let inP = null, outP = null;
+let selId = null;
+let loopSeg = null;
+let mode = 'accurate';
+let drag = null;
+
+const LS_PROJ = 'vc_proj_v2', LS_BG = 'vc_autobg', LS_DEL = 'vc_delsrc', LS_POFF = 'vc_proxyoff';
+const S = {
+  lib: { root:'', items:[], scanning:false, text:'', pready:new Set() },
+  proj: {},        // path -> {segs:[[a,b]], dirty, done, out, pendSig}
+  autoBg: true,
+  delSrc: false,   // 剪辑完成后删除原片
+  hintOff: {},     // path -> true，这个片子不再提示关键帧的事
+  proxyOff: {},    // path -> true，这部手动切回了原画质，别再自动切顺滑预览
+  jobs: [],
+  live: {},        // path -> 正在剪的任务
+  active: 0,
+  gonePath: '',    // 最近一部被移出列表（原片已删）的路径
+  goneIndex: 0,    // 它原来的位置
+};
+const uid = () => Math.random().toString(36).slice(2, 9);
+const neg = p => String(p || '').replace(/\\/g, '/').split('/').pop();
+
+/* ---------------- 时间格式 ---------------- */
+function fmt(t, ms = true){
+  if (!isFinite(t) || t < 0) t = 0;
+  const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = Math.floor(t % 60);
+  const f = Math.floor((t - Math.floor(t)) * 1000);
+  const p2 = n => String(n).padStart(2, '0');
+  let out = (h > 0 ? h + ':' + p2(m) : p2(m)) + ':' + p2(s);
+  if (ms) out += '.' + String(f).padStart(3, '0');
+  return out;
+}
+function fmtDur(t){
+  if (!isFinite(t)) t = 0;
+  if (t < 60) return t.toFixed(2) + 's';
+  const m = Math.floor(t / 60), s = t - m * 60;
+  return m + ':' + String(Math.floor(s)).padStart(2, '0');
+}
+function parseT(str){
+  str = (str || '').trim().replace(',', '.');
+  if (!str) return null;
+  const parts = str.split(':').map(x => parseFloat(x));
+  if (parts.some(x => isNaN(x))) return null;
+  let t = 0;
+  for (const p of parts) t = t * 60 + p;
+  return isFinite(t) ? t : null;
+}
+function toast(text){
+  const el = $('#toast'); el.textContent = text; el.classList.add('show');
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 2200);
+}
+function setMsg(text, cls = ''){
+  const el = $('#msg'); el.textContent = text || '';
+  el.className = 'msg' + (cls ? ' ' + cls : '');
+}
+function escapeHtml(s){ return (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+/* ---------------- 标注持久化（按视频路径存 localStorage） ---------------- */
+function loadStore(){
+  try { S.proj = JSON.parse(localStorage.getItem(LS_PROJ) || '{}') || {}; } catch (_) { S.proj = {}; }
+  S.autoBg = localStorage.getItem(LS_BG) !== '0';
+  $('#autoBg').checked = S.autoBg;
+  S.delSrc = localStorage.getItem(LS_DEL) === '1';
+  $('#delSrc').checked = S.delSrc;
+  $('#delSrcLb').classList.toggle('warn', S.delSrc);
+  try { S.proxyOff = JSON.parse(localStorage.getItem(LS_POFF) || '{}') || {}; } catch (_) { S.proxyOff = {}; }
+}
+function saveProxyOff(){
+  try { localStorage.setItem(LS_POFF, JSON.stringify(S.proxyOff)); } catch (_) {}
+}
+let saveTimer = null;
+const needsPush = new Set();
+function persist(path){
+  if (path) needsPush.add(path);
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flushStore, 400);
+}
+function flushStore(){
+  const out = {};
+  for (const k in S.proj){
+    const p = S.proj[k];
+    if (p && p.segs && p.segs.length) out[k] = p;
+  }
+  try { localStorage.setItem(LS_PROJ, JSON.stringify(out)); } catch (_) {}
+  // 同时存一份到服务端，换浏览器 / 清缓存也不会丢标注
+  for (const k of needsPush){
+    const p = S.proj[k];
+    if (!p) continue;
+    p.ts = Date.now();
+    fetch('/api/projects', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ path:k, entry:{ segs:p.segs, dirty:p.dirty, done:p.done, out:p.out, ts:p.ts } })
+    }).catch(() => {});
+  }
+  needsPush.clear();
+}
+async function loadProjects(){
+  let server = null;
+  try {
+    const r = await fetch('/api/projects').then(x => x.json());
+    server = r.projects || null;
+  } catch (_) {}
+  if (server){
+    for (const k in server){
+      const s = server[k], l = S.proj[k];
+      if (!l || (s.ts || 0) >= (l.ts || 0)){
+        S.proj[k] = { segs:s.segs || [], dirty:!!s.dirty, done:!!s.done, out:s.out || '', ts:s.ts || 0 };
+      }
+    }
+  }
+  for (const k in S.proj){
+    const p = S.proj[k];
+    if (p && p.segs && p.segs.length && !(server && server[k])) needsPush.add(k);
+  }
+  if (needsPush.size) persist();
+}
+function projOf(p, create){
+  if (!p) return null;
+  let o = S.proj[p];
+  if (!o && create) o = S.proj[p] = { segs:[], dirty:false, done:false, out:'', pendSig:'' };
+  return o || null;
+}
+const sigArr = arr => (arr || []).map(s => (+s[0]).toFixed(3) + '-' + (+s[1]).toFixed(3)).join('|');
+
+/* 标注一变就记到这部片子头上 */
+function touch(){
+  if (!st.path) return;
+  const p = projOf(st.path, true);
+  p.segs = segs.map(s => [+s.a.toFixed(3), +s.b.toFixed(3)]).sort((x, y) => x[0] - y[0]);
+  if (p.segs.length){
+    p.dirty = true;
+    p.done = false;
+  } else {
+    p.dirty = false; p.done = false;
+  }
+  persist(st.path);
+  renderLib();
+  renderExportState();
+}
+
+/* ---------------- 时间轴渲染 ---------------- */
+function renderRuler(){
+  if (!st.duration) { ruler.innerHTML = ''; return; }
+  const w = tl.clientWidth;
+  const step = niceStep(st.duration, w);
+  let html = '';
+  for (let t = 0; t <= st.duration; t += step){
+    const p = t / st.duration * 100;
+    html += `<i style="left:${p}%"></i><span style="left:${p}%">${fmt(t, false)}</span>`;
+  }
+  ruler.innerHTML = html;
+}
+function niceStep(dur, w){
+  const targets = [1,2,5,10,15,30,60,120,300,600,900,1800,3600,7200];
+  const want = dur / Math.max(3, Math.floor(w / 90));
+  for (const t of targets) if (t >= want) return t;
+  return 3600;
+}
+function renderSegs(){
+  const d = st.duration || 1;
+  lane.innerHTML = segs.map((s, i) => {
+    const l = s.a / d * 100, w = Math.max(0.15, (s.b - s.a) / d * 100);
+    return `<div class="seg ${s.id === selId ? 'sel' : ''}" data-id="${s.id}"
+      style="left:${l}%;width:${w}%">
+      <span class="lbl">${fmtDur(s.b - s.a)}</span>
+      <div class="h l" data-h="l"></div><div class="h r" data-h="r"></div>
+    </div>`;
+  }).join('');
+  renderList();
+  updatePh();
+  schedulePrewarm();
+  renderExportState();
+}
+function renderList(){
+  const box = $('#list');
+  if (!segs.length){
+    box.innerHTML = `<div class="empty-tip">还没有片段<br>在时间轴上拖一下，或按 <kbd>I</kbd> <kbd>O</kbd> <kbd>Enter</kbd></div>`;
+  } else {
+    box.innerHTML = segs.map((s, i) => `
+      <div class="row ${s.id === selId ? 'sel' : ''}" data-id="${s.id}">
+        <span class="idx">${i + 1}</span>
+        <input class="t" data-k="a" value="${fmt(s.a)}" />
+        <span style="color:#5d6a7c">→</span>
+        <input class="t" data-k="b" value="${fmt(s.b)}" />
+        <span class="d">${fmtDur(s.b - s.a)}</span>
+        <span class="acts">
+          <button data-act="play" title="循环播放">▶</button>
+          <button data-act="here" title="保留从这里开始">⟲</button>
+          <button data-act="del" title="删除">✕</button>
+        </span>
+      </div>`).join('');
+  }
+  const total = segs.reduce((n, s) => n + (s.b - s.a), 0);
+  $('#cnt').textContent = `${segs.length} 个 / 共 ${fmtDur(total)}`;
+}
+/* ---------------- 后台预编码 ---------------- */
+let pw = { busy:false, done:0, total:0, cur:'', error:'' };
+
+function schedulePrewarm(){
+  clearTimeout(schedulePrewarm._t);
+  if (!st.hasVideo || !segs.length) { updatePw(); return; }
+  schedulePrewarm._t = setTimeout(sendPrewarm, 900);
+}
+
+async function sendPrewarm(){
+  if (!st.hasVideo || !segs.length) return;
+  const body = { segments: segs.map(s => [+s.a.toFixed(3), +s.b.toFixed(3)]), mode:'accurate' };
+  try {
+    const r = await fetch('/api/prewarm', { method:'POST',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }).then(x => x.json());
+    if (r.prewarm){ pw = r.prewarm; updatePw(); }
+  } catch (_) {}
+}
+
+function updatePw(){
+  const el = $('#pwarm');
+  if (!el) return;
+  if (!st.hasVideo || !segs.length){ el.className = 'pwarm'; el.textContent = ''; return; }
+  if (S.live[st.path]){ el.className = 'pwarm'; el.textContent = ''; return; }
+  if (pw.error && !pw.busy){
+    el.textContent = pw.error; el.className = 'pwarm err on'; return;
+  }
+  if (pw.busy){
+    el.textContent = `后台预编码 ${pw.done}/${pw.total} 段（${pw.cur}）· 导出时直接拼接`;
+    el.className = 'pwarm busy on';
+  } else if (pw.total && pw.done >= pw.total){
+    el.textContent = `${pw.total} 段已预编码，点导出几乎立刻出片`;
+    el.className = 'pwarm ok on';
+  } else {
+    el.className = 'pwarm'; el.textContent = '';
+  }
+}
+
+function resetPrewarm(){
+  pw = { busy:false, done:0, total:0, cur:'', error:'' };
+  updatePw();
+}
+
+let seekWant = null, seekBusy = false, seekGuard = 0, seekLabelT = 0, seekTry = 0;
+/* 两段式跳转（抄 PotPlayer 的「快速定位」）：
+   实测 跳转耗时 ≈ 12ms + 1.4ms × 目标离前一个关键帧的帧数。
+   所以先跳到目标前面那个关键帧——那一帧几乎立刻出来，画面先动；
+   70ms 后再精确跳到目标，这次慢一点也没人看出来。 */
+let snapFor = null;      // 已经为哪个目标做过「先跳关键帧」
+let lastSnapped = false; // 上一次发起的是不是关键帧那一跳
+
+function kfNear(t){
+  const a = st.kf;
+  if (!a || !a.length) return -1;
+  let lo = 0, hi = a.length - 1, best = -1;
+  while (lo <= hi){
+    const m = (lo + hi) >> 1;
+    if (a[m] <= t){ best = a[m]; lo = m + 1; } else hi = m - 1;
+  }
+  return best;
+}
+
+function updatePh(){
+  const d = st.duration || 1;
+  const t = seekWant != null ? seekWant : (v.currentTime || 0);
+  ph.style.left = (Math.min(1, t / d) * 100) + '%';
+  $('#tNow').textContent = fmt(t);
+}
+
+/* ---------------- 播放控制 ----------------
+   跳转的时间点先记在 seekWant 里，时间码/游标立刻跟过去，
+   真正写 currentTime 只在上一次跳转结束之后再做。
+   连按方向键时中间那些目标会被合并掉——每打断一次都要从关键帧重解一遍，
+   不合并的话 10 次按键只有 3 次能落地，看着就是卡住然后猛跳一下。 */
+function curT(){
+  return seekWant != null ? seekWant : (v.currentTime || 0);
+}
+function seek(t){
+  if (!st.hasVideo) return;
+  const dur = st.duration || v.duration || 0;
+  seekWant = Math.max(0, Math.min(dur || 0, t));
+  seekTry = 0;
+  snapFor = null;
+  updatePh();
+  pumpSeek();
+}
+function pumpSeek(){
+  if (seekWant == null || seekBusy) return;
+  if (v.readyState === 0){
+    v.addEventListener('loadedmetadata', () => { pumpSeek(); }, { once: true });
+    return;
+  }
+  const want = seekWant;
+  // 已经在这个位置了（比如按了两下又按回来），别白解一遍
+  if (!v.seeking && Math.abs((v.currentTime || 0) - want) < 0.015){
+    seekWant = null; snapFor = null; updatePh(); return;
+  }
+  let issue = want, snapped = false;
+  // 原画质 + 长 GOP 时才值得先跳到关键帧；顺滑预览本来就 0.5 秒一个关键帧
+  if (!st.usingProxy && v.paused && snapFor !== want){
+    const k = kfNear(want);
+    const f = 1 / (st.fps || 30);
+    if (k >= 0 && want - k > f * 12){
+      // 关键帧时间点存到毫秒，直接写原值可能差 0.3ms 落在关键帧**前面**，
+      // Chrome 就会退回去从前一个关键帧解——加一点点让它稳稳落在关键帧上
+      issue = Math.min(want, k + 0.004);
+      snapFor = want; snapped = true;
+    }
+  }
+  seekBusy = true;
+  // 坏文件可能永远不触发 seeked，最多重试 3 次就放手，别一直空转
+  seekTry = (seekTry || 0) + 1;
+  try { v.currentTime = issue; } catch (_) { seekBusy = false; }
+  lastSnapped = snapped;
+  clearTimeout(seekGuard);
+  seekGuard = setTimeout(() => {
+    seekBusy = false;
+    if (seekTry >= 3){
+      seekWant = null; seekTry = 0; snapFor = null;
+      clearTimeout(seekLabelT); setSeeking(false);
+      return;
+    }
+    pumpSeek();
+  }, 1500);
+  clearTimeout(seekLabelT);
+  if (!snapped){
+    // 补精确那一跳给更宽的容忍时间，不然会闪一下「跳转中」
+    const grace = (snapFor === want) ? 420 : 180;
+    seekLabelT = setTimeout(() => { if (seekBusy) setSeeking(true); }, grace);
+  }
+}
+function setSeeking(on){
+  $('#seekBusy').classList.toggle('show', !!on);
+}
+v.addEventListener('seeked', () => {
+  seekBusy = false;
+  seekTry = 0;
+  clearTimeout(seekGuard);
+  clearTimeout(seekLabelT);
+  setSeeking(false);
+  // 跳转期间又按了键：目标已经变远，接着往新目标跳
+  if (seekWant != null && Math.abs((v.currentTime || 0) - seekWant) > 0.02){
+    if (lastSnapped){
+      // 关键帧那一帧已经出来了，等它画到屏幕上再补精确的那一跳
+      lastSnapped = false;
+      setTimeout(pumpSeek, 70);
+    } else {
+      pumpSeek();
+    }
+  } else { seekWant = null; snapFor = null; updatePh(); }
+});
+(function smoothHead(){
+  if (!v.paused) updatePh();
+  requestAnimationFrame(smoothHead);
+})();
+function toggle(){
+  if (!st.hasVideo) return;
+  v.paused ? v.play().catch(() => {}) : v.pause();
+}
+function stepFrame(n){
+  v.pause();
+  seek(curT() + n / (st.fps || 30));
+}
+v.addEventListener('play', () => { $('#btnPlay').textContent = '❚❚'; });
+v.addEventListener('pause', () => {
+  $('#btnPlay').textContent = '▶';
+  // 后台预览编好时正在播，就先攒着，等用户暂停再把画面换成顺滑预览
+  if (st.proxyLater) autoUseProxy();
+});
+v.addEventListener('timeupdate', () => {
+  updatePh();
+  if (loopSeg && !v.paused && v.currentTime >= loopSeg.b - 0.02){
+    seek(loopSeg.a);
+  }
+});
+v.addEventListener('loadedmetadata', () => {
+  if (!st.duration || Math.abs(st.duration - v.duration) > 0.5) st.duration = v.duration;
+  $('#tTot').textContent = fmt(st.duration);
+  renderRuler(); renderSegs();
+});
+v.addEventListener('error', () => {
+  if (!st.src) return;
+  // 顺滑预览在编的时候别急着报错，告诉用户等两秒就有画面
+  if (st.proxyBusy){
+    $('#errTxt').textContent = `浏览器放不了这个编码（HEVC / 10bit 等）。
+      正在生成顺滑预览 ${st.proxyPct || 0}%，编完会自动切过去，导出仍然使用原始高清视频。`;
+  } else {
+    $('#errTxt').textContent = '无法播放当前文件（可能是 HEVC / 10bit / MKV 等编码）。可以生成低清预览代理来标注，导出仍然使用原始高清视频。';
+  }
+  $('#ovErr').classList.add('show');
+});
+v.addEventListener('click', toggle);
+v.addEventListener('dblclick', () => { $('#stage').requestFullscreen?.(); });
+
+$('#btnPlay').onclick = toggle;
+document.querySelectorAll('[data-jump]').forEach(b => {
+  b.onclick = () => seek(curT() + parseFloat(b.dataset.jump));
+});
+$('#btnFrameBack').onclick = () => stepFrame(-1);
+$('#btnFrameFwd').onclick = () => stepFrame(1);
+$('#rate').onchange = e => { v.playbackRate = parseFloat(e.target.value); };
+$('#vol').oninput = e => { v.volume = parseFloat(e.target.value); v.muted = v.volume === 0; };
+$('#btnMute').onclick = () => {
+  v.muted = !v.muted;
+  $('#btnMute').textContent = v.muted ? '🔇' : '🔊';
+};
+$('#btnFs').onclick = () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else $('#stage').requestFullscreen?.();
+};
+
+/* ---------------- 标注 ---------------- */
+function setIn(t){
+  inP = Math.max(0, Math.min(st.duration || 0, t ?? curT()));
+  $('#inVal').textContent = fmt(inP);
+  if (outP != null && outP <= inP) { outP = null; $('#outVal').textContent = '--:--.---'; }
+}
+function setOut(t){
+  outP = Math.max(0, Math.min(st.duration || 0, t ?? curT()));
+  $('#outVal').textContent = fmt(outP);
+  if (inP != null && inP >= outP) { inP = null; $('#inVal').textContent = '--:--.---'; }
+}
+function addSeg(a, b){
+  if (b - a < 0.05) { toast('片段太短了'); return null; }
+  if (a > b) [a, b] = [b, a];
+  const s = { id: uid(), a: +a.toFixed(3), b: +b.toFixed(3) };
+  // 重叠检查：新片段覆盖已有片段时剔除重叠部分
+  const kept = [];
+  for (const o of segs){
+    if (o.b <= s.a || o.a >= s.b) { kept.push(o); continue; }
+    if (o.a < s.a) kept.push({ id: o.id, a: o.a, b: +s.a.toFixed(3) });
+    if (o.b > s.b) kept.push({ id: uid(), a: +s.b.toFixed(3), b: o.b });
+  }
+  kept.push(s);
+  segs = kept.filter(x => x.b - x.a > 0.05).sort((x, y) => x.a - y.a);
+  selId = s.id;
+  renderSegs(); touch();
+  return s;
+}
+function resolveOverlaps(){
+  segs.sort((x, y) => x.a - y.a);
+  for (let i = 1; i < segs.length; i++){
+    const prev = segs[i - 1], cur = segs[i];
+    if (cur.a < prev.b - 0.001) cur.a = +prev.b.toFixed(3);
+  }
+  segs = segs.filter(s => s.b - s.a > 0.05);
+}
+function commitRange(){
+  const a = inP ?? curT();
+  const b = (outP != null && outP > a) ? outP : curT();
+  if (Math.abs(b - a) < 0.05) { toast('请先标记入点和出点'); return; }
+  const s = addSeg(a, b);
+  if (!s) return;
+  inP = s.b; outP = null;
+  $('#inVal').textContent = fmt(inP);
+  $('#outVal').textContent = '--:--.---';
+  toast('已加入片段 ' + fmtDur(s.b - s.a));
+}
+$('#btnIn').onclick = () => setIn();
+$('#btnOut').onclick = () => setOut();
+$('#btnAdd').onclick = commitRange;
+$('#btnClear').onclick = () => {
+  if (!segs.length) return;
+  if (!confirm('清空这部片子的所有标注片段？')) return;
+  segs = []; selId = null; renderSegs(); touch(); toast('已清空');
+};
+
+$('#list').addEventListener('click', e => {
+  const row = e.target.closest('.row');
+  if (!row) return;
+  if (e.target.tagName === 'INPUT') return;   // 正在编辑时间，不要跳转
+  const id = row.dataset.id;
+  const s = segs.find(x => x.id === id);
+  if (!s) return;
+  const act = e.target.closest('button')?.dataset.act;
+  if (act === 'del'){
+    segs = segs.filter(x => x.id !== id);
+    if (selId === id) selId = null;
+    renderSegs(); touch(); return;
+  }
+  if (act === 'play'){ loopSeg = s; seek(s.a); v.play().catch(() => {}); toast('循环播放片段 ' + fmtDur(s.b - s.a)); return; }
+  if (act === 'here'){ setIn(v.currentTime); outP = null; $('#outVal').textContent = '--:--.---'; selId = id; renderSegs(); return; }
+  selId = id; renderSegs(); seek(s.a);
+});
+$('#list').addEventListener('change', e => {
+  const inp = e.target.closest('input.t');
+  if (!inp) return;
+  const row = inp.closest('.row');
+  const s = segs.find(x => x.id === row.dataset.id);
+  if (!s) return;
+  const t = parseT(inp.value);
+  if (t == null){ inp.value = fmt(s[inp.dataset.k]); return; }
+  const k = inp.dataset.k;
+  if (k === 'a') s.a = Math.max(0, Math.min(t, s.b - 0.05));
+  else s.b = Math.min(st.duration || t, Math.max(t, s.a + 0.05));
+  resolveOverlaps();
+  renderSegs();
+  touch();
+});
+
+/* ---------------- 时间轴拖拽 ---------------- */
+function timeAt(clientX){
+  const r = tl.getBoundingClientRect();
+  const w = tl.clientWidth || 1;
+  const x = Math.max(0, Math.min(w, clientX - r.left - tl.clientLeft));
+  return { t: x / w * (st.duration || 0), x };
+}
+tl.addEventListener('pointerdown', e => {
+  if (!st.hasVideo) return;
+  const { t, x } = timeAt(e.clientX);
+  const segEl = e.target.closest('.seg');
+  loopSeg = null;
+  tl.setPointerCapture(e.pointerId);
+  tl.classList.add('dragging');
+  if (segEl){
+    const s = segs.find(v2 => v2.id === segEl.dataset.id);
+    const h = e.target.dataset.h;
+    selId = s.id;
+    drag = { kind: h ? (h === 'l' ? 'rl' : 'rr') : 'mv', id: s.id, t, x, a0: s.a, b0: s.b };
+    renderSegs();
+  } else {
+    drag = { kind: 'new', t0: t, x0: x, moved: false };
+    selBox.style.display = 'block';
+    selBox.style.left = x + 'px';
+    selBox.style.width = '0px';
+  }
+});
+tl.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const { t, x } = timeAt(e.clientX);
+  if (drag.kind === 'new'){
+    if (Math.abs(x - drag.x0) > 3) drag.moved = true;
+    const l = Math.min(x, drag.x0), w = Math.abs(x - drag.x0);
+    selBox.style.left = l + 'px'; selBox.style.width = w + 'px';
+    const a = Math.min(t, drag.t0), b = Math.max(t, drag.t0);
+    selBox.title = fmt(a) + ' → ' + fmt(b);
+  } else {
+    const s = segs.find(v2 => v2.id === drag.id);
+    if (!s) return;
+    if (drag.kind === 'mv'){
+      const d = t - drag.t;
+      const len = drag.b0 - drag.a0;
+      s.a = Math.max(0, Math.min(drag.a0 + d, (st.duration || 0) - len));
+      s.b = s.a + len;
+    } else if (drag.kind === 'rl'){
+      s.a = Math.max(0, Math.min(drag.a0 + (t - drag.t), s.b - 0.05));
+    } else {
+      s.b = Math.min(st.duration || t, Math.max(drag.b0 + (t - drag.t), s.a + 0.05));
+    }
+    renderSegs();
+  }
+});
+function endDrag(e){
+  if (!drag) return;
+  const d = drag; drag = null;
+  tl.classList.remove('dragging');
+  selBox.style.display = 'none';
+  try { tl.releasePointerCapture(e.pointerId); } catch (_) {}
+  if (d.kind === 'new'){
+    if (d.moved){
+      const { t } = timeAt(e.clientX);
+      addSeg(Math.min(t, d.t0), Math.max(t, d.t0));
+    } else {
+      seek(d.t0);
+    }
+  } else {
+    resolveOverlaps();
+    renderSegs();
+    touch();
+  }
+}
+tl.addEventListener('pointerup', endDrag);
+tl.addEventListener('pointercancel', endDrag);
+tl.addEventListener('dblclick', e => {
+  const segEl = e.target.closest('.seg');
+  if (!segEl) return;
+  const s = segs.find(x => x.id === segEl.dataset.id);
+  loopSeg = s; seek(s.a); v.play().catch(() => {});
+});
+
+/* ---------------- 键盘 ---------------- */
+document.addEventListener('keydown', e => {
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'select' || tag === 'textarea'){
+    if (e.key === 'Enter') e.target.blur();
+    return;
+  }
+  if (e.ctrlKey && e.key === 'Enter'){ e.preventDefault(); doExport(); return; }
+  switch (e.key){
+    case ' ': e.preventDefault(); toggle(); break;
+    case 'ArrowLeft': seek(curT() - (e.shiftKey ? 5 : 1)); e.preventDefault(); break;
+    case 'ArrowRight': seek(curT() + (e.shiftKey ? 5 : 1)); e.preventDefault(); break;
+    case ',': case '<': stepFrame(-1); break;
+    case '.': case '>': stepFrame(1); break;
+    case 'i': case 'I': setIn(); break;
+    case 'o': case 'O': setOut(); break;
+    case 'Enter': commitRange(); break;
+    case '[': step(-1); break;
+    case ']': step(1); break;
+    case 'p': case 'P': nextTodo(); break;
+    case 'Delete': case 'Backspace':
+      if (selId){
+        segs = segs.filter(x => x.id !== selId);
+        selId = null; renderSegs(); touch(); e.preventDefault();
+      }
+      break;
+    case '?': $('#help').classList.add('show'); break;
+    case 'Escape':
+      $('#help').classList.remove('show');
+      loopSeg = null;
+      if (document.fullscreenElement) document.exitFullscreen();
+      break;
+  }
+});
+$('#btnHelp').onclick = () => $('#help').classList.add('show');
+$('#btnHelpClose').onclick = () => $('#help').classList.remove('show');
+$('#help').onclick = e => { if (e.target.id === 'help') $('#help').classList.remove('show'); };
+
+/* ---------------- 视频切换 / 文件夹列表 ---------------- */
+function setVideo(url){
+  st.src = url;
+  st.hasVideo = true;
+  // 换了播放源：把上一部的跳转状态清掉，别把旧目标写到新视频上
+  seekWant = null; seekBusy = false; seekTry = 0; snapFor = null; lastSnapped = false;
+  clearTimeout(seekGuard); clearTimeout(seekLabelT);
+  setSeeking(false);
+  resetPrewarm();
+  $('#btnReveal').disabled = false;
+  v.src = url;
+  $('#empty').style.display = 'none';
+  $('#ovErr').classList.remove('show');
+  $('#fname').innerHTML = `<b>${escapeHtml(st.name)}</b>`;
+  const i = st.info || {};
+  st.fps = i.fps || 30;
+  st.duration = i.duration || 0;
+  $('#badge').textContent = [i.width && i.width + '×' + i.height, i.vcodec,
+      (i.fps ? i.fps.toFixed(2) + 'fps' : ''), st.usingProxy ? '顺滑预览' : '']
+    .filter(Boolean).join(' · ');
+  $('#badge').classList.add('show');
+  $('#tTot').textContent = fmt(st.duration);
+  renderRuler(); renderSegs();
+  hintSig = '';
+  applySeekHint();
+}
+function updateOut(){
+  $('#outdir').textContent = st.outdir || '—';
+  $('#outdir').title = st.outdir || '';
+  $('#outname').textContent = st.outname || '原文件名_剪辑';
+  $('#outname').title = st.outname || '';
+}
+
+async function switchTo(path){
+  if (!path || path === st.path) return;
+  await leaveCurrent();
+  await openVideo(path);
+}
+/* 打开请求串行化：手快连点两下也不会让画面和文件名对不上 */
+let openLock = Promise.resolve();
+function openVideo(path){
+  const run = async () => {
+    if (!path || path === st.path && st.hasVideo) return;
+    v.pause();
+    const r = await fetch('/api/open', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ path }) }).then(x => x.json()).catch(e => ({ ok:false, error:String(e) }));
+    if (!r.ok){ toast(r.error || '打开失败'); return; }
+    applyOpened(r, path);
+  };
+  openLock = openLock.then(run, run);
+  return openLock;
+}
+/* 离开当前视频前，把标注过的直接丢进后台队列 */
+async function leaveCurrent(){
+  if (!st.path || !st.hasVideo) return;
+  const p = projOf(st.path, false);
+  if (!p || !p.segs || !p.segs.length) return;
+  if (!S.autoBg || st.dropped) return;
+  if (!p.dirty || p.done) return;
+  if (S.live[st.path]) return;
+  const arr = p.segs.slice().sort((a, b) => a[0] - b[0]);
+  const job = await submitExport(st.path, arr, { quiet:true });
+  if (job) toast(`《${neg(st.path)}》转入后台剪辑`);
+}
+function applyOpened(r, path){
+  st.path = r.path || path || '';
+  st.name = r.name; st.dir = r.dir || '';
+  st.outdir = r.outdir; st.outname = r.outname || '';
+  st.dropped = !!r.dropped; st.info = r.info || {};
+  // 顺滑预览默认开：已有缓存直接切，没有就等后台编完自动切
+  // （手动点过「切回原画质」的片子记在 S.proxyOff 里，不会被打扰）
+  const off = !!S.proxyOff[st.path];
+  st.usingProxy = !!r.proxy && !off;
+  st.keyint = (r.info && r.info.keyint) || 0;
+  st.proxyReady = !!r.proxy;
+  st.proxyBusy = !!r.proxyJob;
+  st.proxyPct = 0;
+  st.proxyLater = false;
+  st.kf = [];
+  hintSig = '';
+  const p = projOf(st.path, true);
+  segs = (p.segs || []).map(([a, b]) => ({ id: uid(), a, b }));
+  selId = null; inP = null; outP = null; loopSeg = null;
+  $('#inVal').textContent = '--:--.---';
+  $('#outVal').textContent = '--:--.---';
+  setVideo(src(st.usingProxy ? '/video?p=1' : '/video'));
+  loadKeyframes();
+  updateOut();
+  renderSegs(); renderLib(); renderPos(); renderExportState();
+  if (st.dropped){
+    setMsg('拖入的文件读不到原始路径，正在磁盘上反查原文件夹…');
+    startLocatePoll();
+  } else {
+    setMsg(segs.length ? `这部已有 ${segs.length} 段标注` : '');
+  }
+}
+
+/* 关键帧索引：跳转时先落到关键帧上，画面立刻出来 */
+async function loadKeyframes(){
+  const forPath = st.path;
+  const got = async () => {
+    try {
+      const r = await fetch('/api/keyframes').then(x => x.json());
+      if (st.path !== forPath) return false;
+      if (r && r.ok && r.ready){ st.kf = r.times || []; return true; }
+    } catch (_) {}
+    return false;
+  };
+  if (await got()) return;
+  // 后台还在算，隔一会儿再问几次就够（关键帧索引一般几秒内出炉）
+  for (let i = 0; i < 12; i++){
+    await new Promise(res => setTimeout(res, 1200));
+    if (st.path !== forPath) return;
+    if (await got()) return;
+  }
+}
+
+function autoUseProxy(){
+  if (!st.hasVideo || st.usingProxy || !st.proxyReady) return;
+  if (!v.paused){ st.proxyLater = true; return; }   // 正在播就先不打断，等它暂停
+  useProxy(true, true);
+}
+function src(u){ return u + (u.includes('?') ? '&' : '?') + 't=' + Date.now(); }
+
+function renderPos(){
+  const items = S.lib.items;
+  const i = items.findIndex(it => it.path === st.path);
+  $('#pos').textContent = items.length ? (i >= 0 ? (i + 1) + '/' + items.length : '–/' + items.length) : '—/—';
+}
+function step(n){
+  const items = S.lib.items;
+  if (!items.length){ toast('先打开一个文件夹，才能用 [ ] 切换'); return; }
+  let i = items.findIndex(it => it.path === st.path);
+  if (i < 0){
+    // 当前这部刚被删掉/移出列表：接着从它原来的位置往下走，别跳回第一部
+    i = (S.gonePath === st.path) ? S.goneIndex - n : (n > 0 ? -1 : items.length);
+  }
+  const j = Math.max(0, Math.min(items.length - 1, i + n));
+  if (j === i) { toast(n > 0 ? '已经是最后一部了' : '已经是第一部了'); return; }
+  switchTo(items[j].path);
+}
+function nextTodo(){
+  const items = S.lib.items;
+  if (!items.length){ toast('先打开一个文件夹'); return; }
+  const start = Math.max(0, items.findIndex(it => it.path === st.path));
+  for (let k = 1; k <= items.length; k++){
+    const it = items[(start + k) % items.length];
+    const p = S.proj[it.path];
+    const done = p && p.segs && p.segs.length && p.done && !p.dirty;
+    if (!done && !S.live[it.path]) { switchTo(it.path); return; }
+  }
+  toast('全部片子都剪完了 🎉');
+}
+$('#btnPrev').onclick = () => step(-1);
+$('#btnNext').onclick = () => step(1);
+$('#btnNext2').onclick = () => step(1);
+$('#btnNextTodo').onclick = nextTodo;
+
+/* 侧栏 */
+function showSide(on){
+  $('#side').hidden = !on;
+  $('#btnSide').classList.toggle('active', on);
+}
+function switchTab(name){
+  document.querySelectorAll('.sidehd .tab').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+  $('#paneList').style.display = name === 'list' ? 'flex' : 'none';
+  $('#paneJobs').style.display = name === 'jobs' ? 'flex' : 'none';
+}
+document.querySelectorAll('.sidehd .tab').forEach(b => {
+  b.onclick = () => switchTab(b.dataset.tab);
+});
+$('#btnSide').onclick = () => {
+  const on = $('#side').hidden;
+  showSide(on);
+  if (on && !S.lib.items.length) switchTab('jobs');
+};
+$('#btnJobs').onclick = () => { showSide(true); switchTab('jobs'); renderJobs(); };
+$('#btnSideClose').onclick = () => showSide(false);
+
+$('#q').oninput = e => { S.lib.text = e.target.value; renderLib(); };
+$('#libList').onclick = e => {
+  const li = e.target.closest('.li');
+  if (!li) return;
+  const it = S.lib.items[+li.dataset.i];
+  if (it) switchTo(it.path);
+};
+
+let libSig = '';
+let libPreadySig = '';
+function rowState(it, i){
+  const p = S.proj[it.path], j = S.live[it.path];
+  // ⚡ = 这部片子的顺滑预览已经备好，切过去秒开
+  const pf = !!(S.lib.pready && S.lib.pready.has(i));
+  if (j){
+    return { cls:'busy', pf, tag: j.status === 'queued' ? '排队' : Math.round(j.pct * 100) + '%',
+             pb: j.status === 'queued' ? 100 : Math.round(j.pct * 100) };
+  }
+  if (p && p.segs && p.segs.length){
+    if (p.done && !p.dirty) return { cls:'done', pf, tag:'已导出', pb:0 };
+    return { cls:'has', pf, tag: p.segs.length + ' 段', pb:0 };
+  }
+  return { cls:'', pf, tag:'', pb:0 };
+}
+
+function renderLib(force){
+  const box = $('#libList');
+  const items = S.lib.items;
+  $('#libCount').textContent = items.length;
+  if (!items.length){
+    if (libSig !== 'empty:' + S.lib.root){
+      libSig = 'empty:' + S.lib.root;
+      box.innerHTML = `<div class="jt-empty">${S.lib.root
+        ? '这个文件夹里没找到视频文件'
+        : '还没有打开文件夹<br>点顶部「打开文件夹…」<br>会把里面所有子文件夹的视频都列出来'}</div>`;
+    }
+    renderPos();
+    return;
+  }
+  const q = (S.lib.text || '').trim().toLowerCase();
+  const vis = [];
+  for (let i = 0; i < items.length; i++){
+    const it = items[i];
+    if (q && (it.name + ' ' + (it.sub || '')).toLowerCase().indexOf(q) < 0) continue;
+    vis.push([i, it, rowState(it, i)]);
+  }
+  // 状态没变就不重绘，3000 个视频也不会每 0.9 秒刷一遍 DOM
+  const sig = vis.map(v => v[0] + v[2].cls + v[2].tag + (v[2].pf ? 'p' : ''))
+    .join(',') + '|' + st.path + '|' + q;
+  if (!force && sig === libSig){ renderPos(); return; }
+  libSig = sig;
+  box.innerHTML = vis.length ? vis.map(([i, it, s]) => {
+    const meta = [it.dur ? fmtDur(it.dur) : (it.probed ? '' : '读取中…'), it.sub || '']
+      .filter(Boolean).join(' · ');
+    return `<div class="li ${s.cls} ${it.path === st.path ? 'on' : ''}" data-i="${i}"
+      title="${escapeHtml(it.path)}">${s.pb ? `<i class="pb" style="width:${s.pb}%"></i>` : ''}
+      <div class="nm">${s.pf ? '<b class="pfr" title="顺滑预览已备好，切过去秒开">⚡</b>' : ''}${escapeHtml(it.name)}</div>
+      <div class="mt">${escapeHtml(meta)}</div>
+      <span class="tag2">${s.tag}</span></div>`;
+  }).join('') : '<div class="jt-empty">没有匹配的视频</div>';
+  renderPos();
+}
+
+async function pickFolder(){
+  setMsg('正在扫描文件夹…');
+  const r = await fetch('/api/scan-dir', { method:'POST', headers:{'Content-Type':'application/json'},
+    body:'{}' }).then(x => x.json()).catch(e => ({ ok:false, error:String(e) }));
+  if (r.cancelled){ setMsg(''); return; }
+  if (!r.ok){ setMsg(r.error || '扫描失败', 'err'); return; }
+  S.lib.root = r.root;
+  S.lib.items = r.items || [];
+  S.lib.scanning = !!r.scanning;
+  S.lib.text = ''; $('#q').value = '';
+  showSide(true); switchTab('list'); renderLib();
+  setMsg(`找到 ${S.lib.items.length} 个视频${r.truncated ? '（超过 3000 个，只显示前 3000）' : ''}`, 'ok');
+  toast(`扫描到 ${S.lib.items.length} 个视频`);
+  if (!S.lib.items.length) return;
+  if (!st.path){
+    switchTo(S.lib.items[0].path);
+  } else {
+    renderPos();
+  }
+}
+$('#btnFolder').onclick = pickFolder;
+$('#btnScanAgain').onclick = async () => {
+  if (!S.lib.root) return pickFolder();
+  setMsg('重新扫描…');
+  const r = await fetch('/api/scan-dir', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ path: S.lib.root }) }).then(x => x.json()).catch(() => null);
+  if (r && r.ok){
+    S.lib.items = r.items || []; S.lib.scanning = !!r.scanning;
+    renderLib(); setMsg(`重新扫描完成，${S.lib.items.length} 个视频`, 'ok');
+  }
+};
+
+/* ---------------- 后台任务 ---------------- */
+let seenStatus = {};
+
+function applyJobs(list){
+  const live = {};
+  for (const j of list){
+    if (j.kind !== 'export') continue;
+    if (j.status === 'queued' || j.status === 'running') live[j.src] = j;
+    const prev = seenStatus[j.id];
+    if (j.status === 'done' && prev && prev !== 'done'){
+      if (j.deleted){
+        // 原片删了：列表和标注一起摘掉，别留点不动的空条目
+        S.gonePath = j.src;
+        S.goneIndex = Math.max(0, S.lib.items.findIndex(it => it.path === j.src));
+        delete S.proj[j.src];
+        needsPush.delete(j.src);
+        S.lib.items = S.lib.items.filter(it => it.path !== j.src);
+        persist();
+        toast(`《${neg(j.src)}》剪辑完成，原片已删除`);
+        if (st.path === j.src){
+          st.hasVideo = false;
+          setMsg('原片已删除，这部已从列表移除', 'ok');
+          renderExportState();
+        }
+      } else {
+        const p = projOf(j.src, true);
+        if (j.output) p.out = j.output;
+        // 只有提交的就是当前这套标注，才算「已导出」
+        p.dirty = !(p.pendSig && p.pendSig === sigArr(p.segs || []));
+        p.done = !p.dirty;
+        persist(j.src);
+        toast(`《${neg(j.src)}》剪辑完成`);
+      }
+    }
+    if (j.status === 'error' && prev && prev !== 'error' && prev !== undefined){
+      toast(`《${neg(j.src)}》失败：${String(j.error || '').slice(0, 50)}`);
+    }
+    seenStatus[j.id] = j.status;
+  }
+  S.live = live;
+  S.jobs = list;
+  S.active = list.filter(j => j.kind === 'export' && (j.status === 'queued' || j.status === 'running')).length;
+  renderJobs(); renderLib(); renderExportState();
+}
+
+function renderJobs(){
+  const n = S.active || 0;
+  $('#jobCount').textContent = n;
+  $('#btnJobs').innerHTML = n ? `后台 ${n}` : '后台';
+  $('#btnJobs').classList.toggle('hot', n > 0);
+  const box = $('#jobList');
+  // 顺滑预览是自动生成的，进度在画面上那条提示里看就行，别把任务列表刷满
+  const list = (S.jobs || []).filter(j => j.kind !== 'proxy');
+  if (!list.length){
+    box.innerHTML = `<div class="jt-empty">还没有后台任务<br>标注完点导出，切到别的视频它也会继续跑</div>`;
+    return;
+  }
+  box.innerHTML = list.map(j => {
+    const cls = j.status === 'running' ? 'run' : (j.status === 'error' ? 'err' : '');
+    const pct = Math.round((j.pct || 0) * 100);
+    const tag = j.status === 'queued' ? '排队中' : (j.status === 'running' ? pct + '%' : '');
+    const ok = j.status === 'done';
+    const tagCls = ok ? 'done' : (j.status === 'error' ? 'err' : '');
+    const detail = ok
+      ? `${j.message || '完成'}${j.output ? ' → ' + neg(j.output) : ''}`
+      : (j.status === 'error' ? String(j.error || '').slice(0, 90) : `${j.message || ''}`);
+    return `<div class="job ${cls}">
+      <div class="jr"><span class="jn" title="${escapeHtml(j.src)}">${escapeHtml(neg(j.src))}</span>
+      <span class="jp ${tagCls}">${tag || (ok ? '✓' : '✕')}</span></div>
+      ${j.status === 'running' || j.status === 'queued'
+        ? `<div class="bar sm"><i style="width:${j.status === 'queued' ? 100 : pct}%"></i></div>` : ''}
+      <div class="jm" title="${escapeHtml(detail)}">${escapeHtml(detail)}</div>
+    </div>`;
+  }).join('');
+}
+$('#btnJobsClear').onclick = async () => {
+  const r = await fetch('/api/jobs/clear', { method:'POST' }).then(x => x.json()).catch(() => null);
+  if (r && r.ok){ S.jobs = r.jobs || []; renderJobs(); }
+};
+
+/* ---------------- 导出状态 ---------------- */
+function currentJob(){ return st.path ? S.live[st.path] : null; }
+
+function renderExportState(){
+  const btn = $('#btnExport');
+  const p = st.path ? S.proj[st.path] : null;
+  const j = currentJob();
+  // 勾了删原片，就把「会删原片」写在按钮上，点之前一眼能看见
+  const lbl = S.delSrc ? '导出并删除原片 ⏎' : '导出保留片段 ⏎';
+  if (j){
+    btn.disabled = true;
+    btn.textContent = j.status === 'queued' ? '排队中…' : `后台剪辑中 ${Math.round(j.pct * 100)}%`;
+  } else if (!segs.length || !st.hasVideo){
+    btn.disabled = true;
+    btn.textContent = lbl;
+  } else if (p && p.done && !p.dirty){
+    btn.disabled = false;
+    btn.textContent = S.delSrc ? '再导一次并删原片 ⏎' : '再导出一次 ⏎';
+  } else {
+    btn.disabled = false;
+    btn.textContent = lbl;
+  }
+  const pct = j ? (j.status === 'queued' ? 0 : j.pct) : (p && p.done && !p.dirty ? 1 : 0);
+  $('#prog').style.width = Math.round(pct * 100) + '%';
+  updatePw();
+}
+
+async function submitExport(path, arr, opts = {}){
+  const body = { src: path, segments: arr.map(s => [+s[0], +s[1]]), mode,
+                 del_src: !!S.delSrc };
+  const r = await fetch('/api/export', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body) }).then(x => x.json()).catch(e => ({ ok:false, error:String(e) }));
+  if (!r.ok){
+    if (!opts.quiet) toast(r.error || '导出失败');
+    return null;
+  }
+  const p = projOf(path, true);
+  p.pendSig = sigArr(arr);
+  p.dirty = true;
+  persist(path);
+  await pull();
+  return r.job || { dup:true };
+}
+
+async function doExport(){
+  if (!st.hasVideo){ toast('先打开一个视频'); return; }
+  if (!segs.length){ toast('请先标注至少一个片段'); return; }
+  if (currentJob()){ toast('这部正在后台剪，等它跑完'); return; }
+  const arr = segs.slice().sort((a, b) => a.a - b.a).map(s => [+s.a.toFixed(3), +s.b.toFixed(3)]);
+  setMsg('已提交后台剪辑…');
+  const job = await submitExport(st.path, arr);
+  if (!job){ setMsg('提交失败', 'err'); return; }
+  setMsg('后台剪辑中，可以按 ] 换下一部继续标注', 'ok');
+  renderExportState();
+}
+$('#btnExport').onclick = doExport;
+
+$('#btnExportAll').onclick = async () => {
+  const todo = [];
+  for (const k in S.proj){
+    const p = S.proj[k];
+    if (!p || !p.segs || !p.segs.length) continue;
+    if (S.live[k]) continue;
+    if (p.done && !p.dirty) continue;
+    todo.push([k, p]);
+  }
+  if (!todo.length){ toast('没有需要导出的片子'); return; }
+  if (!confirm(`把 ${todo.length} 部已标注的片子全部加入后台队列？`)) return;
+  let n = 0;
+  for (const [k, p] of todo){
+    const r = await submitExport(k, p.segs.slice().sort((a, b) => a[0] - b[0]), { quiet:true });
+    if (r) n++;
+  }
+  toast(`已提交 ${n} 个剪辑任务，后台依次跑`);
+  showSide(true); switchTab('jobs'); renderJobs();
+};
+
+$('#modeBox').onclick = e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  mode = b.dataset.mode;
+  [...$('#modeBox').children].forEach(x => x.classList.toggle('on', x === b));
+  $('#modeHint').textContent = mode === 'fast'
+    ? '不重编码，秒级出片；边界对齐关键帧，个别片段偏差过大时自动改精确'
+    : '逐帧精确，速度取决于视频长度';
+};
+$('#modeHint').textContent = '逐帧精确，速度取决于视频长度';
+
+$('#btnOutdir').onclick = async () => {
+  const r = await fetch('/api/pick-outdir', { method:'POST' }).then(x => x.json());
+  if (r.outdir){ st.outdir = r.outdir; updateOut(); }
+};
+$('#outdir').onclick = async () => {
+  const p = prompt('输出目录（默认与原视频同目录，文件名会自动加「_剪辑」）：', st.outdir || '');
+  if (!p) return;
+  const r = await fetch('/api/set-outdir', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ outdir: p })
+  }).then(x => x.json());
+  if (!r.ok){ toast(r.error || '路径无效'); return; }
+  st.outdir = r.outdir; updateOut(); toast('输出目录已更新');
+};
+$('#outname').title = '导出文件名 = 原文件名 + 「_剪辑」';
+$('#btnReveal').onclick = () => {
+  const p = st.path ? S.proj[st.path] : null;
+  const target = (p && p.out) || st.outdir;
+  fetch('/api/reveal', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ path: target || '' }) });
+};
+$('#hwEnc').onchange = async () => {
+  const on = $('#hwEnc').checked;
+  $('#hwEnc').disabled = true;
+  try {
+    const r = await fetch('/api/hwenc', { method:'POST',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify({ on }) }).then(x => x.json());
+    if (r.ok){
+      st.hwenc = r.hwenc; st.encoder = r.encoder; st.encoderLabel = r.encoderLabel || '';
+      updateHwTip();
+      resetPrewarm();
+      schedulePrewarm();
+      toast(on ? '已启用显卡编码，重新预编码' : '已切换回 CPU 编码');
+    } else {
+      $('#hwEnc').checked = !on;
+      toast(r.error || '切换失败');
+    }
+  } catch (_) { toast('切换失败'); }
+  $('#hwEnc').disabled = false;
+};
+$('#autoBg').onchange = () => {
+  S.autoBg = $('#autoBg').checked;
+  localStorage.setItem(LS_BG, S.autoBg ? '1' : '0');
+  toast(S.autoBg ? '换片子时会自动把上一部丢进后台队列' : '已关闭自动后台导出');
+};
+$('#delSrc').onchange = () => {
+  const on = $('#delSrc').checked;
+  if (on){
+    const ok = confirm('开启后，每部片子剪辑成功就会把原视频删掉。\n\n'
+      + '· 默认先进回收站，误删可以还原\n'
+      + '· 回收站放不下的大文件会被直接删除\n'
+      + '· 只对之后提交的片子生效\n\n确定开启吗？');
+    if (!ok){
+      $('#delSrc').checked = false;
+      S.delSrc = false;
+      $('#delSrcLb').classList.remove('warn');
+      localStorage.setItem(LS_DEL, '0');
+      return;
+    }
+  }
+  S.delSrc = on;
+  $('#delSrcLb').classList.toggle('warn', on);
+  localStorage.setItem(LS_DEL, on ? '1' : '0');
+  renderExportState();          // 按钮文案跟着变成「导出并删除原片」
+  toast(on ? '剪辑完成后会删除原片（进回收站）' : '已关闭：保留原片');
+};
+
+function updateHwTip(){
+  const el = $('#hwTip');
+  if (!el) return;
+  if (st.hwenc && st.encoder !== 'x264'){
+    const short = (st.encoderLabel || '').replace(/^(显卡|核显)\s*/, '') || '硬件';
+    el.textContent = `${short} · 快约 1.5 倍`;
+    el.style.color = '#7fb4e8';
+  } else {
+    el.textContent = 'x264 · 体积最小';
+    el.style.color = '#6d7c90';
+  }
+}
+
+/* ---------------- 轮询 ---------------- */
+let tickTimer = null;
+let tickN = 0;
+async function pull(){
+  tickN++;
+  let r;
+  try { r = await fetch('/api/status').then(x => x.json()); } catch (_) { return; }
+  if (!r || !r.ok) return;
+  applyJobs(r.jobs || []);
+  pw = r.prewarm || pw;
+  updatePw();
+  if (typeof r.keyint === 'number' && r.keyint !== st.keyint){
+    st.keyint = r.keyint;
+    applySeekHint();
+  }
+  const pwk = r.proxyWork || {};
+  const pct = Math.round((pwk.pct || 0) * 100);
+  if (!!pwk.busy !== st.proxyBusy || (pwk.busy && pct !== st.proxyPct)){
+    st.proxyBusy = !!pwk.busy;
+    st.proxyPct = pct;
+    applySeekHint();
+  }
+  if (!!r.proxyReady !== st.proxyReady){
+    st.proxyReady = !!r.proxyReady;
+    applySeekHint();
+  }
+  // 哪几部的顺滑预览已经备好了 —— 列表行首打 ⚡
+  // 带上 total：删掉一部片后下标会整体前移，光比下标会撞车
+  const pre = (r.pready ? r.pready.join(',') : '') + '@' + ((r.library && r.library.total) || 0);
+  if (pre !== libPreadySig){
+    libPreadySig = pre;
+    S.lib.pready = new Set(r.pready || []);
+    libSig = '';
+    renderLib();
+  }
+  // 默认就用顺滑预览：后台编完自己切过去，用户不用管
+  if (pwk.ready && !st.usingProxy && !S.proxyOff[st.path]) autoUseProxy();
+  // 扫到的时长是后台慢慢补的，隔几拍拉一次完整清单就够
+  if (r.library && r.library.scanning && tickN % 3 === 0){
+    try {
+      const lib = await fetch('/api/library').then(x => x.json());
+      if (lib && lib.ok && lib.items && S.lib.items.length){
+        const map = {};
+        lib.items.forEach(it => { map[it.path] = it; });
+        S.lib.items.forEach(it => {
+          const s = map[it.path];
+          if (s && s.probed){ it.dur = s.dur; it.w = s.w; it.h = s.h; it.probed = true; }
+        });
+        S.lib.scanning = !!lib.scanning;
+        renderLib();
+      }
+    } catch (_) {}
+  }
+}
+function startTick(){
+  if (tickTimer) return;
+  tickTimer = setInterval(pull, 900);
+  pull();
+}
+
+/* ---------------- 打开单个文件 / 拖拽 ---------------- */
+async function openFile(){
+  const r = await fetch('/api/open', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' })
+    .then(x => x.json()).catch(e => ({ ok:false, error:String(e) }));
+  if (r.cancelled) return;
+  if (!r.ok){ toast(r.error || '打开失败'); return; }
+  await leaveCurrent();
+  applyOpened(r, r.path);
+}
+$('#btnOpen').onclick = openFile;
+$('#btnPickAgain').onclick = openFile;
+
+/* 拖入文件的目录反查：找到后把输出目录切回原视频文件夹 */
+let locateTimer = null;
+function startLocatePoll(){
+  clearInterval(locateTimer);
+  let ticks = 0;
+  locateTimer = setInterval(async () => {
+    ticks++;
+    let r;
+    try { r = await fetch('/api/state').then(x => x.json()); } catch (_) { return; }
+    if (r.origin && r.video && r.video !== st.path){
+      // 真实文件找到了：把标注挪到真实路径上
+      const old = st.path;
+      if (S.proj[old]){ S.proj[r.video] = S.proj[old]; delete S.proj[old]; persist(r.video); }
+      st.path = r.video; st.name = r.name; st.dropped = false;
+      st.outdir = r.outdir; st.outname = r.outname; updateOut();
+      clearInterval(locateTimer);
+      setMsg('已定位原视频文件夹，导出会存回原处', 'ok');
+      $('#btnReveal').disabled = false;
+      toast('已定位原视频文件夹');
+      renderLib(); renderPos();
+      return;
+    }
+    if (!r.locating){
+      clearInterval(locateTimer);
+      setMsg('没能定位原视频文件夹，导出默认存到桌面，可点「选择」改目录');
+    } else if (ticks > 150){
+      clearInterval(locateTimer);
+    }
+  }, 800);
+}
+
+let dragDepth = 0;
+window.addEventListener('dragenter', e => { e.preventDefault(); dragDepth++; $('#drop').classList.add('show'); });
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('dragleave', e => { if (--dragDepth <= 0){ dragDepth = 0; $('#drop').classList.remove('show'); } });
+window.addEventListener('drop', async e => {
+  e.preventDefault(); dragDepth = 0; $('#drop').classList.remove('show');
+  const f = e.dataTransfer.files[0];
+  if (!f) return;
+  await leaveCurrent();
+  toast('正在载入 ' + f.name + ' …');
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/upload?name=' + encodeURIComponent(f.name));
+  xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+  xhr.upload.onprogress = ev => {
+    if (ev.lengthComputable) setMsg(`复制中 ${(ev.loaded / ev.total * 100).toFixed(0)}%`);
+  };
+  xhr.onload = () => {
+    try {
+      const r = JSON.parse(xhr.responseText);
+      if (!r.ok){ toast(r.error || '载入失败'); return; }
+      applyOpened(r, r.path);
+    } catch (_) { toast('载入失败'); }
+  };
+  xhr.onerror = () => toast('载入失败');
+  xhr.send(f);
+});
+
+/* ---------------- 顺滑预览（关键帧密集、低码率副本） ----------------
+   原片 8 秒才一个关键帧时，每次跳转都要重解 200 多帧，怎么优化前端都快不了。
+   这个副本 0.5 秒一个关键帧，实测跳转 190ms → 8ms。导出仍然用原片。 */
+let hintSig = '';
+let hintReadyT = 0;
+
+function applySeekHint(){
+  const el = $('#seekHint');
+  if (!el) return;
+  let sig = '', html = '';
+  if (!st.hasVideo){
+    sig = '';
+  } else if (st.usingProxy){
+    sig = 'on';
+    html = `<span>顺滑预览已开启（低清副本，导出仍用原片）</span>
+            <button data-act="off">切回原画质</button>`;
+  } else if (st.proxyBusy){
+    sig = 'gen' + Math.round((st.proxyPct || 0) / 5);
+    html = `<span>正在生成顺滑预览 ${Math.round(st.proxyPct || 0)}%…编好会自动切过去，先看原画质</span>`;
+  } else if (st.proxyReady){
+    sig = 'ready';
+    html = `<span>顺滑预览已就绪</span>
+            <button data-act="on">切到顺滑预览</button>`;
+    // 只是提醒一下，8 秒后自己收起来，别一直挡着画面
+    clearTimeout(hintReadyT);
+    hintReadyT = setTimeout(() => {
+      if (hintSig === 'ready'){ hintSig = 'ready-off'; $('#seekHint').classList.remove('show'); }
+    }, 8000);
+  } else if (st.keyint >= 1.2 && !S.hintOff[st.path]){
+    const frames = Math.round(st.keyint * (st.fps || 30));
+    sig = 'slow' + st.keyint;
+    html = `<span>关键帧间隔 <b>${st.keyint.toFixed(1)}s</b>，每次跳转要重解约 ${frames} 帧，所以快进会卡</span>
+            <button data-act="on">生成顺滑预览</button>
+            <button class="x" data-act="hide" title="这个片子不再提示">×</button>`;
+  }
+  if (sig === hintSig) return;
+  hintSig = sig;
+  el.innerHTML = html;
+  el.classList.toggle('show', !!sig);
+}
+
+$('#seekHint').onclick = e => {
+  const act = e.target.dataset && e.target.dataset.act;
+  if (act === 'on') useProxy(true);
+  else if (act === 'off') useProxy(false);
+  else if (act === 'hide'){ S.hintOff[st.path] = true; hintSig = ''; applySeekHint(); }
+};
+
+function useProxy(on, silent){
+  if (!st.hasVideo) return;
+  if (on && !st.proxyReady){ genProxy(); return; }
+  const back = curT();
+  const wasPlaying = !v.paused;
+  st.usingProxy = on;
+  st.proxyLater = false;
+  // 记住用户的选择：切回原画质之后，这部就别再自动切回顺滑预览
+  if (on) delete S.proxyOff[st.path];
+  else S.proxyOff[st.path] = true;
+  saveProxyOff();
+  hintSig = '';
+  setVideo(src(on ? '/video?p=1' : '/video'));
+  v.addEventListener('loadedmetadata', () => {
+    seek(back);
+    if (wasPlaying) v.play().catch(() => {});
+  }, { once: true });
+  applySeekHint();
+  if (!silent) toast(on ? '已切到顺滑预览，快进快退不再卡（导出仍用原片）' : '已切回原画质');
+}
+
+async function genProxy(){
+  if (!st.hasVideo) return;
+  if (st.proxyReady){ useProxy(true); return; }
+  if (st.proxyBusy) return;
+  $('#ovErr').classList.remove('show');
+  const r = await fetch('/api/proxy', { method:'POST' }).then(x => x.json())
+    .catch(e => ({ ok:false, error:String(e) }));
+  if (!r.ok){ setMsg(r.error || '生成失败', 'err'); return; }
+  if (r.ready){ st.proxyReady = true; applySeekHint(); useProxy(true); return; }
+  st.proxyBusy = true; st.proxyPct = 0;
+  hintSig = '';
+  applySeekHint();
+  setMsg('正在生成顺滑预览…');
+}
+$('#btnProxy').onclick = genProxy;
+
+/* ---------------- 启动 ---------------- */
+window.addEventListener('resize', () => { renderRuler(); updatePh(); });
+
+async function boot(){
+  loadStore();
+  await loadProjects();
+  const r = await fetch('/api/state').then(x => x.json()).catch(() => null);
+  if (!r || !r.ok){ setMsg('连不上本地服务，请重新双击「启动.bat」', 'err'); return; }
+  st.hwenc = !!r.hwenc; st.encoder = r.encoder || 'x264';
+  st.encoderLabel = r.encoderLabel || '';
+  $('#hwEnc').checked = st.hwenc;
+  updateHwTip();
+  if (!r.hasFfmpeg) setMsg('未找到 ffmpeg，导出不可用', 'err');
+
+  // 恢复文件夹列表
+  if (r.library && r.library.total){
+    S.lib.root = r.library.root || '';
+    if (S.lib.root) showSide(true);
+  }
+  if (r.video){
+    st.path = r.video; st.name = r.name; st.dir = r.dir || '';
+    st.outdir = r.outdir; st.outname = r.outname || '';
+    st.dropped = !!r.dropped; st.info = r.info || {};
+    st.keyint = (r.info && r.info.keyint) || 0;
+    const off = !!S.proxyOff[st.path];
+    st.usingProxy = !!r.proxy && !off;
+    st.proxyReady = !!r.proxy;
+    const pwk = r.proxyWork || {};
+    st.proxyBusy = !!pwk.busy;
+    st.proxyPct = Math.round((pwk.pct || 0) * 100);
+    st.kf = [];
+    const p = projOf(st.path, true);
+    segs = (p.segs || []).map(([a, b]) => ({ id: uid(), a, b }));
+    setVideo(src(r.proxyUrl || '/video'));
+    loadKeyframes();
+    updateOut();
+    renderSegs(); renderLib(); renderPos(); renderExportState();
+    if (r.locating) startLocatePoll();
+  } else {
+    renderLib(); renderPos(); renderExportState();
+  }
+  applyJobs(r.jobs || []);
+  // 服务器内存里还留着上次扫的文件夹，直接把清单拉回来
+  if (r.library && r.library.total){
+    try {
+      const lib = await fetch('/api/library').then(x => x.json());
+      if (lib && lib.ok && lib.items && lib.items.length){
+        S.lib.items = lib.items;
+        S.lib.root = lib.root || S.lib.root;
+        S.lib.scanning = !!lib.scanning;
+        renderLib(); showSide(true);
+      }
+    } catch (_) {}
+  }
+  startTick();
+}
+boot();
+</script>
+</body>
+</html>
