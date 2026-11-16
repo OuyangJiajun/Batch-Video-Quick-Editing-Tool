@@ -26,6 +26,8 @@ button:active{transform:translateY(1px)}
 button:disabled{opacity:.45; cursor:not-allowed}
 button.primary{background:linear-gradient(180deg,var(--seg2),var(--accent2)); border-color:var(--accent2); color:#fff; font-weight:600}
 button.primary:hover{filter:brightness(1.08)}
+/* 「标记为已处理」：已标记时变成选中态（蓝底描边），一眼能区分撤销和标记 */
+#btnMark.on{background:#16233a; border-color:var(--seg2); color:#cfe4ff}
 button.ghost{background:transparent}
 button.mini{padding:3px 7px; font-size:12px; border-radius:6px}
 input[type=text],input[type=number],select{
@@ -97,6 +99,9 @@ main{flex:1;display:flex;min-height:0}
 .li.has .tag2{color:#ffce7a;background:#2a2318}
 .li.busy .tag2{color:#ffce7a;background:#2a2318}
 .li.done .tag2{color:#63d6a0;background:#15251d}
+.li.skip{background:#111720}
+.li.skip .nm{color:#8c99aa}
+.li.skip .tag2{color:#8fb8ff;background:#17202e}
 .li .pfr{color:#63d6a0;font-weight:400;margin-right:3px;font-style:normal}
 .li.busy{background:#1a1f28}
 .li .pb{position:absolute;left:0;bottom:0;height:2px;background:linear-gradient(90deg,#2f7de1,#7fc0ff)}
@@ -303,7 +308,7 @@ kbd{
       <button id="btnPrev" title="上一部 ([)">‹</button>
       <span class="pos" id="pos">—/—</span>
       <button id="btnNext" title="下一部 (])">›</button>
-      <button id="btnNextTodo" title="下一部还没剪的">⏭</button>
+      <button id="btnNextTodo" title="下一部还没剪的（已处理、已导出的会跳过）">⏭</button>
     </div>
     <span class="fname" id="fname">未选择文件</span>
     <span class="spacer"></span>
@@ -450,6 +455,12 @@ kbd{
           <button id="btnNext2" title="下一部 (])">下一部 ›</button>
           <button id="btnReveal" disabled>打开文件夹</button>
         </div>
+        <div class="r" style="margin:7px 0 0">
+          <button id="btnMark" style="flex:1"
+            title="这部片子不需要剪，直接记成已处理（快捷键 M）。已处理的片子按 ⏭ 会跳过">
+            <span id="btnMarkTx">✓ 标记为已处理（不用剪）</span>
+          </button>
+        </div>
         <div class="msg" id="msg"></div>
       </div>
     </div>
@@ -468,6 +479,7 @@ kbd{
     <tr><td><kbd>I</kbd> / <kbd>O</kbd></td><td>标记入点 / 出点</td></tr>
     <tr><td><kbd>Enter</kbd></td><td>把 入点→出点 加入片段</td></tr>
     <tr><td><kbd>Ctrl</kbd>+<kbd>Enter</kbd></td><td>提交后台剪辑（可以马上换下一部）</td></tr>
+    <tr><td><kbd>M</kbd></td><td>这部不用剪 / 标记为已处理（再按一次取消）</td></tr>
     <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>上一部 / 下一部视频</td></tr>
     <tr><td><kbd>P</kbd></td><td>下一部还没剪完的</td></tr>
     <tr><td><kbd>Del</kbd> / <kbd>Backspace</kbd></td><td>删除选中的片段</td></tr>
@@ -572,7 +584,7 @@ function flushStore(){
   const out = {};
   for (const k in S.proj){
     const p = S.proj[k];
-    if (p && p.segs && p.segs.length) out[k] = p;
+    if (p && ((p.segs && p.segs.length) || p.marked)) out[k] = p;
   }
   try { localStorage.setItem(LS_PROJ, JSON.stringify(out)); } catch (_) {}
   // 同时存一份到服务端，换浏览器 / 清缓存也不会丢标注
@@ -581,7 +593,8 @@ function flushStore(){
     if (!p) continue;
     p.ts = Date.now();
     fetch('/api/projects', { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ path:k, entry:{ segs:p.segs, dirty:p.dirty, done:p.done, out:p.out, ts:p.ts } })
+      body: JSON.stringify({ path:k, entry:{ segs:p.segs, dirty:p.dirty, done:p.done,
+                                             marked:!!p.marked, out:p.out, ts:p.ts } })
     }).catch(() => {});
   }
   needsPush.clear();
@@ -596,20 +609,21 @@ async function loadProjects(){
     for (const k in server){
       const s = server[k], l = S.proj[k];
       if (!l || (s.ts || 0) >= (l.ts || 0)){
-        S.proj[k] = { segs:s.segs || [], dirty:!!s.dirty, done:!!s.done, out:s.out || '', ts:s.ts || 0 };
+        S.proj[k] = { segs:s.segs || [], dirty:!!s.dirty, done:!!s.done,
+                      marked:!!s.marked, out:s.out || '', ts:s.ts || 0 };
       }
     }
   }
   for (const k in S.proj){
     const p = S.proj[k];
-    if (p && p.segs && p.segs.length && !(server && server[k])) needsPush.add(k);
+    if (p && ((p.segs && p.segs.length) || p.marked) && !(server && server[k])) needsPush.add(k);
   }
   if (needsPush.size) persist();
 }
 function projOf(p, create){
   if (!p) return null;
   let o = S.proj[p];
-  if (!o && create) o = S.proj[p] = { segs:[], dirty:false, done:false, out:'', pendSig:'' };
+  if (!o && create) o = S.proj[p] = { segs:[], dirty:false, done:false, marked:false, out:'', pendSig:'' };
   return o || null;
 }
 const sigArr = arr => (arr || []).map(s => (+s[0]).toFixed(3) + '-' + (+s[1]).toFixed(3)).join('|');
@@ -619,6 +633,8 @@ function touch(){
   if (!st.path) return;
   const p = projOf(st.path, true);
   p.segs = segs.map(s => [+s.a.toFixed(3), +s.b.toFixed(3)]).sort((x, y) => x[0] - y[0]);
+  // 一旦动过片段，「已处理」就作废 —— 有了新片段就说明这部要剪
+  p.marked = false;
   if (p.segs.length){
     p.dirty = true;
     p.done = false;
@@ -1085,6 +1101,7 @@ document.addEventListener('keydown', e => {
     case '[': step(-1); break;
     case ']': step(1); break;
     case 'p': case 'P': nextTodo(); break;
+    case 'm': case 'M': toggleMarked(); break;
     case 'Delete': case 'Backspace':
       if (selId){
         segs = segs.filter(x => x.id !== selId);
@@ -1251,7 +1268,7 @@ function nextTodo(){
   for (let k = 1; k <= items.length; k++){
     const it = items[(start + k) % items.length];
     const p = S.proj[it.path];
-    const done = p && p.segs && p.segs.length && p.done && !p.dirty;
+    const done = p && ((p.segs && p.segs.length && p.done && !p.dirty) || p.marked);
     if (!done && !S.live[it.path]) { switchTo(it.path); return; }
   }
   toast('全部片子都剪完了 🎉');
@@ -1300,6 +1317,8 @@ function rowState(it, i){
     return { cls:'busy', pf, tag: j.status === 'queued' ? '排队' : Math.round(j.pct * 100) + '%',
              pb: j.status === 'queued' ? 100 : Math.round(j.pct * 100) };
   }
+  // 手动标了「已处理」：不用剪，也不参与「下一部未完成」
+  if (p && p.marked) return { cls:'skip', pf, tag:'已处理', pb:0 };
   if (p && p.segs && p.segs.length){
     if (p.done && !p.dirty) return { cls:'done', pf, tag:'已导出', pb:0 };
     return { cls:'has', pf, tag: p.segs.length + ' 段', pb:0 };
@@ -1407,6 +1426,7 @@ function applyJobs(list){
         // 只有提交的就是当前这套标注，才算「已导出」
         p.dirty = !(p.pendSig && p.pendSig === sigArr(p.segs || []));
         p.done = !p.dirty;
+        p.marked = false;      // 真剪过了，就不算「已处理」
         persist(j.src);
         toast(`《${neg(j.src)}》剪辑完成`);
       }
@@ -1464,6 +1484,7 @@ function renderExportState(){
   const btn = $('#btnExport');
   const p = st.path ? S.proj[st.path] : null;
   const j = currentJob();
+  const marked = !!(p && p.marked);
   // 勾了删原片，就把「会删原片」写在按钮上，点之前一眼能看见
   const lbl = S.delSrc ? '导出并删除原片 ⏎' : '导出保留片段 ⏎';
   if (j){
@@ -1471,7 +1492,7 @@ function renderExportState(){
     btn.textContent = j.status === 'queued' ? '排队中…' : `后台剪辑中 ${Math.round(j.pct * 100)}%`;
   } else if (!segs.length || !st.hasVideo){
     btn.disabled = true;
-    btn.textContent = lbl;
+    btn.textContent = marked ? '已标记为已处理，不用导出' : lbl;
   } else if (p && p.done && !p.dirty){
     btn.disabled = false;
     btn.textContent = S.delSrc ? '再导一次并删原片 ⏎' : '再导出一次 ⏎';
@@ -1479,6 +1500,13 @@ function renderExportState(){
     btn.disabled = false;
     btn.textContent = lbl;
   }
+  // 「标记为已处理」：没打开视频时不可点；已处理时变成撤销
+  const mk = $('#btnMark');
+  mk.disabled = !st.hasVideo;
+  mk.classList.toggle('on', marked);
+  $('#btnMarkTx').textContent = marked
+    ? '↺ 取消「已处理」标记　M'
+    : (segs.length ? '✓ 标记为已处理（有 ' + segs.length + ' 段没导出）' : '✓ 标记为已处理（不用剪）');
   const pct = j ? (j.status === 'queued' ? 0 : j.pct) : (p && p.done && !p.dirty ? 1 : 0);
   $('#prog').style.width = Math.round(pct * 100) + '%';
   updatePw();
@@ -1514,6 +1542,30 @@ async function doExport(){
 }
 $('#btnExport').onclick = doExport;
 
+/* 这部片子不需要剪，直接记成「已处理」：不进导出队列，⏭ 也不会再停在它上面 */
+function toggleMarked(){
+  if (!st.hasVideo){ toast('先打开一个视频'); return; }
+  if (currentJob()){ toast('这部正在后台剪，等它跑完再标记'); return; }
+  const p = projOf(st.path, true);
+  if (p.marked){
+    p.marked = false;
+    persist(st.path);
+    renderLib(); renderExportState();
+    setMsg('已取消「已处理」标记');
+    toast('已取消「已处理」');
+    return;
+  }
+  if (segs.length && !confirm(`这部还有 ${segs.length} 个片段没导出，\n标记为已处理后这些片段不会再导出（标注还在），确定吗？`)) return;
+  p.marked = true;
+  p.dirty = false;          // 不要让「切换视频时自动后台导出」把它拖进队列
+  p.done = false;
+  persist(st.path);
+  renderLib(); renderExportState();
+  setMsg('已标记为已处理 — 按 ] 继续下一部', 'ok');
+  toast('已标记为已处理');
+}
+$('#btnMark').onclick = toggleMarked;
+
 $('#btnExportAll').onclick = async () => {
   const todo = [];
   for (const k in S.proj){
@@ -1521,6 +1573,7 @@ $('#btnExportAll').onclick = async () => {
     if (!p || !p.segs || !p.segs.length) continue;
     if (S.live[k]) continue;
     if (p.done && !p.dirty) continue;
+    if (p.marked) continue;       // 手动标了「已处理」的不参与批量导出
     todo.push([k, p]);
   }
   if (!todo.length){ toast('没有需要导出的片子'); return; }

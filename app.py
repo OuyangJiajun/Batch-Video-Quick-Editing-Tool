@@ -70,7 +70,7 @@ SKIP_SCAN = {'$recycle.bin', 'system volume information', 'recycler', '_tmp',
 # 标注工程：存在本地文件里，换浏览器 / 清缓存也不会丢
 DATA = os.path.join(ROOT, '_data')
 PROJ_FILE = os.path.join(DATA, 'annotations.json')
-PROJECTS = {}          # 视频路径 -> {segs, dirty, done, out, ts}
+PROJECTS = {}          # 视频路径 -> {segs, dirty, done, marked, out, ts}
 PROJ_LOCK = threading.Lock()
 PROJ_NEED_SAVE = False
 
@@ -1062,7 +1062,7 @@ def put_project(path, entry):
         ts = int(entry.get('ts') or 0)
         if ts and ts < int(old.get('ts') or 0):
             return
-        cur = {'segs': [], 'dirty': False, 'done': False, 'out': '', 'ts': ts}
+        cur = {'segs': [], 'dirty': False, 'done': False, 'marked': False, 'out': '', 'ts': ts}
         segs = []
         for s in entry.get('segs') or []:
             try:
@@ -1074,6 +1074,7 @@ def put_project(path, entry):
         cur['segs'] = sorted(segs)[:2000]
         cur['dirty'] = bool(entry.get('dirty'))
         cur['done'] = bool(entry.get('done'))
+        cur['marked'] = bool(entry.get('marked'))    # 「不用剪，已处理」的手动标记
         cur['out'] = str(entry.get('out') or '')[:500]
         PROJECTS[path] = cur
     touch_projects()
@@ -1787,7 +1788,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(keyframes_payload(STATE['video']))
         if p == '/api/projects':
             with PROJ_LOCK:
-                data = {k: v for k, v in PROJECTS.items() if v.get('segs')}
+                data = {k: v for k, v in PROJECTS.items() if v.get('segs') or v.get('marked')}
             return self._json({'ok': True, 'projects': data})
         if p == '/api/library':
             return self._json({'ok': True, **library_payload(full=True)})
